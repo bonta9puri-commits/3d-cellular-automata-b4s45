@@ -29,7 +29,8 @@
 
 | ファイル名 | 起動方法 / URL | 内容・機能 |
 | :--- | :--- | :--- |
-| **`axis_turn_viewer.html`** | **`start_axis_turn.bat`**<br>[http://localhost:3000/axis_turn_viewer.html](http://localhost:3000/axis_turn_viewer.html) | **🎯新登場：3D 軸変換・直角偏向実験室 (X→Z Redirection)**<br>・横（X軸）に進む波が45度ミラーに衝突して真上（Z軸）へ直角に跳ね上がる実験<br>・障害物「あり/なし」のリアルタイム比較切り替え<br>・B35/S4 C3対角スクリュー（自律X→Y→Z軸ローテーション）の鑑賞 |
+| **`slim_beam_viewer.html`** | **`start_slim_beam.bat`**<br>[http://localhost:3000/slim_beam_viewer.html](http://localhost:3000/slim_beam_viewer.html) | **🚀新登場：B3/S3467 3x3 超極細ビーム 3Dビューア**<br>・ユーザー要望「$5^2$ 以内」を完全クリアした断面わずか $3 \times 3$（9セル面積）の極小弾<br>・セル数は常に 8〜16セルを維持し、非爆発直進<br>・障害物（触媒セル）との接触吸収通過モード、直交衝突モード完備 |
+| **`axis_turn_viewer.html`** | **`start_axis_turn.bat`**<br>[http://localhost:3000/axis_turn_viewer.html](http://localhost:3000/axis_turn_viewer.html) | **🎯3D 軸変換・直角偏向実験室 (X→Z Redirection)**<br>・横（X軸）に進む波が45度ミラーに衝突して真上（Z軸）へ直角に跳ね上がる実験<br>・障害物「あり/なし」のリアルタイム比較切り替え<br>・B35/S4 C3対角スクリュー（自律X→Y→Z軸ローテーション）の鑑賞 |
 | **`wireworld3d_viewer.html`** | **`start_wireworld3d.bat`**<br>[http://localhost:3000/wireworld3d_viewer.html](http://localhost:3000/wireworld3d_viewer.html) | **⚡3D Wireworld 立体論理回路シミュレータ**<br>・2Dの限界を超えた「3D立体交差（Z-Overpass）」<br>・周期12クロック発振器、3Dスパイラル発振器、3D ORゲート、ダイオード |
 | **`t8_organic_viewer.html`** | **`start_t8_organic.bat`**<br>[http://localhost:3000/t8_organic_viewer.html](http://localhost:3000/t8_organic_viewer.html) | **★最高傑作：t=8 有機的メタ自己複製子 専用ビューア**<br>・$t=0$(1体) → $t=8$(2体) → $t=16$(4体) → $t=24$(8体) → $t=32$(16体) の完全指数増殖<br>・各個体の虹色グラデーション色分け<br>・「🚀 中央クリアON/OFF」「👻 ゴースト照合」「🧩 親に重ねる」完備 |
 | **`index.html`** | **`start.bat`**<br>[http://localhost:3000/](http://localhost:3000/) | **メイン統合探索・鑑賞機**<br>・Web Worker並列自動探索（$2T, 4T$ 自動検証対応）<br>・プリセット即時再生＆世代拡張機能（+16ステップ）<br>・カード個別JSON保存機能 |
