@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Replicator - B35/S567 (5-Cell Z-Surge Pulsar)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #080c16;
+      color: #e2e8f0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+    .glass-panel {
+      background: rgba(13, 20, 36, 0.85);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 35px 0 rgba(0, 0, 0, 0.5);
+    }
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(168, 85, 247, 0.5);
+      border-radius: 3px;
+    }
+    .glow-purple {
+      box-shadow: 0 0 18px rgba(168, 85, 247, 0.6);
+    }
+  </style>
+</head>
+<body class="select-none">
+
+  <!-- 3D Canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- Header -->
+  <header class="absolute top-4 left-4 z-10 flex items-center space-x-3 pointer-events-auto">
+    <div class="glass-panel px-4 py-2.5 rounded-xl flex items-center space-x-3">
+      <div class="w-3 h-3 rounded-full bg-purple-400 animate-pulse glow-purple"></div>
+      <h1 class="text-base font-bold tracking-wider text-white flex items-center gap-2">
+        <span>B35 / S567</span>
+        <span class="text-xs px-2 py-0.5 rounded bg-purple-950 text-purple-300 font-mono border border-purple-800/50">5-Cell Z-Surge</span>
+      </h1>
+      <span class="text-xs text-slate-400 border-l border-slate-700 pl-3">3D深層自己複製子 ビューア</span>
+    </div>
+
+    <!-- Wide View Toggle -->
+    <button id="btn-toggle-ui" class="glass-panel px-3.5 py-2.5 rounded-xl text-xs text-slate-300 hover:text-white hover:border-purple-500/50 flex items-center space-x-2 transition shadow-lg active:scale-95" title="UIの表示/非表示を切り替え">
+      <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+      <span id="label-ui-toggle">ワイド鑑賞</span>
+    </button>
+  </header>
+
+  <!-- Right Info Panel -->
+  <div id="panel-info" class="absolute right-4 top-4 w-80 glass-panel rounded-2xl p-4 z-10 pointer-events-auto space-y-3 transition-all duration-300">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+      <h2 class="text-xs font-bold tracking-wider text-slate-300 uppercase">自己複製子ステータス</h2>
+      <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800/40">t=4 分裂</span>
+    </div>
+
+    <div class="space-y-2 text-xs">
+      <div class="flex justify-between">
+        <span class="text-slate-400">Totalisticルール:</span>
+        <span class="font-mono text-yellow-400 font-bold">B3,5 / S5,6,7</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-400">初期シード:</span>
+        <span class="font-mono text-purple-300 font-bold">5 セル (Z=0 平面)</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-400">1回複製ステップ:</span>
+        <span class="font-mono text-cyan-300 font-bold">t = 4 (D = 8.0 units)</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-400">分裂方向:</span>
+        <span class="font-mono text-emerald-400 font-bold">±Z 軸方向 (Z=-4, +4)</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-400">現在ステップ:</span>
+        <span id="info-current-step" class="font-mono text-white font-bold">t = 0</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-400">現在セル総数:</span>
+        <span id="info-cell-count" class="font-mono text-purple-400 font-bold">5</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-400">空間スパン (Z幅):</span>
+        <span id="info-z-span" class="font-mono text-cyan-400 font-bold">0 units</span>
+      </div>
+    </div>
+
+    <div class="pt-2 border-t border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+      5セルの初期シードが $t=1 \sim 3$ で20セルまで脈動膨張し、$t=4$ で厳密に10セル（5+5）へ完全分裂。その後も連鎖的にフラクタル増殖します。
+    </div>
+  </div>
+
+  <!-- Bottom Playback Bar -->
+  <div class="absolute bottom-5 left-1/2 transform -translate-x-1/2 z-10 pointer-events-auto">
+    <div class="glass-panel px-6 py-3.5 rounded-2xl flex items-center space-x-5 shadow-2xl">
+      
+      <!-- Prev -->
+      <button id="btn-step-prev" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition" title="1ステップ戻る">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
+
+      <!-- Play / Pause -->
+      <button id="btn-play-pause" class="w-10 h-10 rounded-xl bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center transition shadow-lg shadow-purple-600/30" title="再生/一時停止">
+        <svg id="icon-play" class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="icon-pause" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+
+      <!-- Next -->
+      <button id="btn-step-next" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition" title="1ステップ進む">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+      </button>
+
+      <!-- Timeline Slider -->
+      <div class="flex items-center space-x-3 w-80">
+        <span class="text-xs font-mono text-slate-400 min-w-[32px]">t=<span id="label-step" class="text-white font-bold">0</span></span>
+        <input id="slider-timeline" type="range" min="0" max="32" value="0" step="1" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500">
+        <span class="text-xs font-mono text-slate-400 min-w-[32px]">/<span id="label-max-step">32</span></span>
+      </div>
+
+      <!-- Playback Speed -->
+      <div class="flex items-center space-x-1.5 border-l border-slate-700 pl-4">
+        <span class="text-xs text-slate-400">速度:</span>
+        <select id="select-speed" class="bg-slate-800 border border-slate-700 text-xs rounded px-2 py-1 text-slate-200">
+          <option value="800">0.5x</option>
+          <option value="400" selected>1.0x</option>
+          <option value="200">2.0x</option>
+          <option value="100">4.0x</option>
+        </select>
+      </div>
+
+      <!-- Extend Generations (+16 steps) -->
+      <button id="btn-extend-steps" class="px-3 py-1.5 rounded-lg bg-purple-900/60 hover:bg-purple-800 text-xs font-semibold text-purple-300 border border-purple-700/50 flex items-center space-x-1.5 transition active:scale-95 shadow" title="さらに先の世代までシミュレーションを拡張">
+        <span>🌌</span>
+        <span>世代拡張 (+16)</span>
+      </button>
+
+      <!-- Reset Camera -->
+      <button id="btn-reset-cam" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="カメラ視点リセット">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // --- 26 Neighbors & Core Simulator ---
+    const NEIGHBORS_26 = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          if (dx === 0 && dy === 0 && dz === 0) continue;
+          NEIGHBORS_26.push([dx, dy, dz]);
+        }
+      }
+    }
+
+    function simulateStep(activePoints, rule) {
+      const neighborCounts = new Map();
+      const aliveSet = new Set();
+
+      for (let i = 0; i < activePoints.length; i++) {
+        const p = activePoints[i];
+        aliveSet.add(`${p[0]},${p[1]},${p[2]}`);
+
+        for (let j = 0; j < NEIGHBORS_26.length; j++) {
+          const off = NEIGHBORS_26[j];
+          const nx = p[0] + off[0];
+          const ny = p[1] + off[1];
+          const nz = p[2] + off[2];
+          const nkey = `${nx},${ny},${nz}`;
+          let e = neighborCounts.get(nkey);
+          if (!e) {
+            neighborCounts.set(nkey, { count: 1, coord: [nx, ny, nz] });
+          } else {
+            e.count++;
+          }
+        }
+      }
+
+      const nextActive = [];
+      const bSet = rule.B instanceof Set ? rule.B : new Set(rule.B);
+      const sSet = rule.S instanceof Set ? rule.S : new Set(rule.S);
+
+      for (const [key, entry] of neighborCounts) {
+        const isAlive = aliveSet.has(key);
+        if (isAlive) {
+          if (sSet.has(entry.count)) nextActive.push(entry.coord);
+        } else {
+          if (bSet.has(entry.count)) nextActive.push(entry.coord);
+        }
+      }
+      return nextActive;
+    }
+
+    // --- Data Definition ---
+    const RULE = { B: [3, 5], S: [5, 6, 7] };
+    const C0 = [[0,0,0], [2,2,0], [1,0,0], [1,2,0], [1,1,0]];
+
+    // Pre-calculate up to t=32
+    let history = [C0];
+    let curr = C0;
+    for (let t = 1; t <= 32; t++) {
+      curr = simulateStep(curr, RULE);
+      history.push(curr);
+    }
+
+    let currentStep = 0;
+    let isPlaying = false;
+    let playInterval = null;
+    let playSpeedMs = 400;
+
+    // --- Three.js Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x080c16, 0.0035);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 3000);
+    // Position camera diagonally along Z axis
+    camera.position.set(28, 22, 38);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0x080c16);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0xc084fc, 1.3);
+    dirLight1.position.set(30, 50, 40);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.9);
+    dirLight2.position.set(-30, -20, -40);
+    scene.add(dirLight2);
+
+    // Grid (Z oriented)
+    const gridHelper = new THREE.GridHelper(120, 60, 0x3b0764, 0x1e1b4b);
+    gridHelper.position.y = -8;
+    scene.add(gridHelper);
+
+    // InstancedMesh
+    const MAX_INSTANCES = 8000;
+    const boxGeometry = new THREE.BoxGeometry(0.88, 0.88, 0.88);
+    const boxMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.4,
+      vertexColors: true
+    });
+    const instancedMesh = new THREE.InstancedMesh(boxGeometry, boxMaterial, MAX_INSTANCES);
+    instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(instancedMesh);
+
+    const dummyMatrix = new THREE.Matrix4();
+    const tempColor = new THREE.Color();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- Render Step ---
+    function renderStep() {
+      const points = history[currentStep] || [];
+      const count = Math.min(points.length, MAX_INSTANCES);
+      instancedMesh.count = count;
+
+      let minZ = Infinity, maxZ = -Infinity;
+      let sx = 0, sy = 0, sz = 0;
+
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        sx += p[0]; sy += p[1]; sz += p[2];
+        if (p[2] < minZ) minZ = p[2];
+        if (p[2] > maxZ) maxZ = p[2];
+      }
+
+      const n = points.length || 1;
+      const center = [sx / n, sy / n, sz / n];
+      const zSpan = points.length > 0 ? (maxZ - minZ) : 0;
+
+      for (let i = 0; i < count; i++) {
+        const p = points[i];
+        dummyMatrix.setPosition(p[0] - center[0], p[1] - center[1], p[2] - center[2]);
+        instancedMesh.setMatrixAt(i, dummyMatrix);
+
+        // Color coding by Z position
+        if (currentStep === 0) {
+          tempColor.setHex(0xa855f7); // Purple for seed
+        } else if (p[2] > 0) {
+          tempColor.setHex(0x38bdf8); // Cyan for +Z cluster
+        } else if (p[2] < 0) {
+          tempColor.setHex(0xf43f5e); // Rose for -Z cluster
+        } else {
+          tempColor.setHex(0xe879f9); // Center
+        }
+        instancedMesh.setColorAt(i, tempColor);
+      }
+
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
+
+      // Update UI Info
+      document.getElementById('label-step').textContent = currentStep;
+      document.getElementById('slider-timeline').value = currentStep;
+      document.getElementById('info-current-step').textContent = `t = ${currentStep}`;
+      document.getElementById('info-cell-count').textContent = points.length;
+      document.getElementById('info-z-span').textContent = `${zSpan.toFixed(1)} units`;
+
+      // Auto Camera Framing for huge expansions
+      if (points.length > 0) {
+        let maxDistSq = 0;
+        for (const p of points) {
+          const dx = p[0] - center[0];
+          const dy = p[1] - center[1];
+          const dz = p[2] - center[2];
+          const dsq = dx*dx + dy*dy + dz*dz;
+          if (dsq > maxDistSq) maxDistSq = dsq;
+        }
+        const radius = Math.sqrt(maxDistSq);
+        const desiredCamDist = Math.max(20, radius * 2.1);
+        const curDist = camera.position.length();
+        if (curDist < desiredCamDist * 0.85) {
+          const factor = desiredCamDist / curDist;
+          camera.position.multiplyScalar(factor);
+          controls.update();
+        }
+      }
+    }
+
+    // --- Controls ---
+    function startPlayback() {
+      if (isPlaying) return;
+      isPlaying = true;
+      document.getElementById('icon-play').classList.add('hidden');
+      document.getElementById('icon-pause').classList.remove('hidden');
+
+      playInterval = setInterval(() => {
+        const maxStep = history.length - 1;
+        if (currentStep < maxStep) {
+          currentStep++;
+        } else {
+          currentStep = 0;
+        }
+        renderStep();
+      }, playSpeedMs);
+    }
+
+    function pausePlayback() {
+      isPlaying = false;
+      document.getElementById('icon-play').classList.remove('hidden');
+      document.getElementById('icon-pause').classList.add('hidden');
+      if (playInterval) {
+        clearInterval(playInterval);
+        playInterval = null;
+      }
+    }
+
+    document.getElementById('btn-play-pause').addEventListener('click', () => {
+      if (isPlaying) pausePlayback();
+      else startPlayback();
+    });
+
+    document.getElementById('btn-step-prev').addEventListener('click', () => {
+      pausePlayback();
+      if (currentStep > 0) {
+        currentStep--;
+        renderStep();
+      }
+    });
+
+    document.getElementById('btn-step-next').addEventListener('click', () => {
+      pausePlayback();
+      if (currentStep < history.length - 1) {
+        currentStep++;
+        renderStep();
+      }
+    });
+
+    document.getElementById('slider-timeline').addEventListener('input', (e) => {
+      pausePlayback();
+      currentStep = parseInt(e.target.value);
+      renderStep();
+    });
+
+    document.getElementById('select-speed').addEventListener('change', (e) => {
+      playSpeedMs = parseInt(e.target.value);
+      if (isPlaying) {
+        pausePlayback();
+        startPlayback();
+      }
+    });
+
+    document.getElementById('btn-reset-cam').addEventListener('click', () => {
+      camera.position.set(28, 22, 38);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    // --- Dynamic Extend Generations (+16 steps) ---
+    document.getElementById('btn-extend-steps').addEventListener('click', () => {
+      let lastPoints = history[history.length - 1];
+      for (let s = 0; s < 16; s++) {
+        lastPoints = simulateStep(lastPoints, RULE);
+        history.push(lastPoints);
+      }
+      const newMax = history.length - 1;
+      const slider = document.getElementById('slider-timeline');
+      slider.max = newMax;
+      document.getElementById('label-max-step').textContent = newMax;
+
+      const btn = document.getElementById('btn-extend-steps');
+      const origText = btn.innerHTML;
+      btn.innerHTML = `<span>✨</span><span>t=${newMax}まで拡張完了!</span>`;
+      setTimeout(() => { btn.innerHTML = origText; }, 1800);
+
+      renderStep();
+    });
+
+    // --- Wide Mode Toggle ---
+    let isWide = false;
+    document.getElementById('btn-toggle-ui').addEventListener('click', () => {
+      isWide = !isWide;
+      const pInfo = document.getElementById('panel-info');
+      const lbl = document.getElementById('label-ui-toggle');
+      if (isWide) {
+        pInfo.style.transform = 'translateY(-130%)';
+        lbl.textContent = 'UI復帰';
+      } else {
+        pInfo.style.transform = 'translateY(0)';
+        lbl.textContent = 'ワイド鑑賞';
+      }
+    });
+
+    // Init
+    renderStep();
+  </script>
+</body>
+</html>
