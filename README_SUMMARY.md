@@ -29,7 +29,8 @@
 
 | ファイル名 | 起動方法 / URL | 内容・機能 |
 | :--- | :--- | :--- |
-| **`slim_beam_viewer.html`** | **`start_slim_beam.bat`**<br>[http://localhost:3000/slim_beam_viewer.html](http://localhost:3000/slim_beam_viewer.html) | **🚀新登場：B3/S3467 3x3 超極細ビーム 3Dビューア**<br>・ユーザー要望「$5^2$ 以内」を完全クリアした断面わずか $3 \times 3$（9セル面積）の極小弾<br>・セル数は常に 8〜16セルを維持し、非爆発直進<br>・障害物（触媒セル）との接触吸収通過モード、直交衝突モード完備 |
+| **`bullet_lab_viewer.html`** | **`start_bullet_lab.bat`**<br>[http://localhost:3000/bullet_lab_viewer.html](http://localhost:3000/bullet_lab_viewer.html) | **🛸新登場：3D 弾丸開発ラボ (2Dグライダーの2乗直積)**<br>・2Dグライダー(5セル)の直積（2乗）から生まれた 9〜10セルの極小立体弾丸<br>・十字翼型ミサイル(9セル)、テンソル積デルタ翼(9セル)、90°ツイスト結合弾(10セル)<br>・Life 5766での7セル静止ブロック結晶化、Life 4555でのY軸推進シミュレーション |
+| **`slim_beam_viewer.html`** | **`start_slim_beam.bat`**<br>[http://localhost:3000/slim_beam_viewer.html](http://localhost:3000/slim_beam_viewer.html) | **🚀B3/S3467 3x3 超極細ビーム 3Dビューア**<br>・ユーザー要望「$5^2$ 以内」を完全クリアした断面わずか $3 \times 3$（9セル面積）の極小弾<br>・セル数は常に 8〜16セルを維持し、非爆発直進 |
 | **`axis_turn_viewer.html`** | **`start_axis_turn.bat`**<br>[http://localhost:3000/axis_turn_viewer.html](http://localhost:3000/axis_turn_viewer.html) | **🎯3D 軸変換・直角偏向実験室 (X→Z Redirection)**<br>・横（X軸）に進む波が45度ミラーに衝突して真上（Z軸）へ直角に跳ね上がる実験<br>・障害物「あり/なし」のリアルタイム比較切り替え<br>・B35/S4 C3対角スクリュー（自律X→Y→Z軸ローテーション）の鑑賞 |
 | **`wireworld3d_viewer.html`** | **`start_wireworld3d.bat`**<br>[http://localhost:3000/wireworld3d_viewer.html](http://localhost:3000/wireworld3d_viewer.html) | **⚡3D Wireworld 立体論理回路シミュレータ**<br>・2Dの限界を超えた「3D立体交差（Z-Overpass）」<br>・周期12クロック発振器、3Dスパイラル発振器、3D ORゲート、ダイオード |
 | **`t8_organic_viewer.html`** | **`start_t8_organic.bat`**<br>[http://localhost:3000/t8_organic_viewer.html](http://localhost:3000/t8_organic_viewer.html) | **★最高傑作：t=8 有機的メタ自己複製子 専用ビューア**<br>・$t=0$(1体) → $t=8$(2体) → $t=16$(4体) → $t=24$(8体) → $t=32$(16体) の完全指数増殖<br>・各個体の虹色グラデーション色分け<br>・「🚀 中央クリアON/OFF」「👻 ゴースト照合」「🧩 親に重ねる」完備 |
