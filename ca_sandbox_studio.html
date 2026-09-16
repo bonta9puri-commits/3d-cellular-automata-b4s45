@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>🛠️ 3D CA 自由設計スタジオ (Interactive Sandbox)</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #050811;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container { width: 100vw; height: 100vh; position: absolute; }
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(11, 17, 28, 0.95);
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 18px 22px;
+      max-width: 440px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.8);
+      z-index: 10;
+    }
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 18px;
+      color: #58a6ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 12px;
+      background: rgba(56, 139, 253, 0.2);
+      color: #58a6ff;
+      border: 1px solid rgba(56, 139, 253, 0.5);
+    }
+    .desc {
+      font-size: 12px;
+      color: #8b949e;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    /* ツールパレット */
+    .palette-title {
+      font-size: 11px;
+      color: #8b949e;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .palette-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .tool-btn {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .tool-btn:hover { background: #21262d; border-color: #58a6ff; }
+    .tool-btn.active {
+      background: rgba(56, 139, 253, 0.2);
+      border-color: #58a6ff;
+      color: #58a6ff;
+      font-weight: 600;
+    }
+    .tool-color { width: 10px; height: 10px; border-radius: 2px; }
+
+    /* コントロール */
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    button.ctrl-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      cursor: pointer;
+      flex: 1;
+    }
+    button.ctrl-btn:hover { background: #30363d; }
+    button.btn-primary {
+      background: #238636;
+      border-color: #2ea043;
+      color: #fff;
+      font-weight: 600;
+    }
+    button.btn-primary:hover { background: #2ea043; }
+
+    /* 統計ステータス */
+    .status-box {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: monospace;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .help-hint {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #6e7681;
+      line-height: 1.4;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-panel">
+    <h1>
+      <span>3D CA 設計スタジオ</span>
+      <span class="badge">Pure B4/S45</span>
+    </h1>
+    <div class="desc">
+      グリッド上をクリックして砲台やアタッチメントを自由に配置。<br>
+      距離を変えて<strong>「幾何学的ディレイ」</strong>を自分の手で実験できます！
+    </div>
+
+    <div class="palette-title">配置するパーツを選択:</div>
+    <div class="palette-grid">
+      <button class="tool-btn active" id="tool-gunA" onclick="setTool('gunA')">
+        <div class="tool-color" style="background: #34d399;"></div>
+        <span>前向き砲台 (+弾丸装填)</span>
+      </button>
+      <button class="tool-btn" id="tool-gunB" onclick="setTool('gunB')">
+        <div class="tool-color" style="background: #fb923c;"></div>
+        <span>逆向き砲台 (+弾丸装填)</span>
+      </button>
+      <button class="tool-btn" id="tool-bulletA" onclick="setTool('bulletA')">
+        <div class="tool-color" style="background: #38bdf8;"></div>
+        <span>弾丸単体 (+Z方向)</span>
+      </button>
+      <button class="tool-btn" id="tool-bulletB" onclick="setTool('bulletB')">
+        <div class="tool-color" style="background: #f472b6;"></div>
+        <span>弾丸単体 (-Z方向)</span>
+      </button>
+      <button class="tool-btn" id="tool-attach" onclick="setTool('attach')">
+        <div class="tool-color" style="background: #818cf8;"></div>
+        <span>静止体 (6セル Still Life)</span>
+      </button>
+      <button class="tool-btn" id="tool-delete" onclick="setTool('delete')">
+        <div class="tool-color" style="background: #f43f5e;"></div>
+        <span>消しゴム (削除)</span>
+      </button>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn btn-primary" id="btn-run" onclick="toggleSim()">▶ 物理実行 (B4/S45)</button>
+      <button class="ctrl-btn" onclick="stepPureSim()">1コマ進める</button>
+      <button class="ctrl-btn" onclick="resetToInitial()">リセット</button>
+      <button class="ctrl-btn" onclick="clearAll()">全消去</button>
+    </div>
+
+    <div class="status-box">
+      <span>STEP: <span id="step-count" style="color: #58a6ff;">0</span></span>
+      <span>ALIVE CELLS: <span id="cell-count" style="color: #3fb950;">0</span></span>
+    </div>
+
+    <div class="help-hint">
+      💡 操作: グリッド上を<strong>左クリック</strong>でパーツ配置、<strong>右ドラッグ</strong>で視点回転、<strong>ホイール</strong>で拡大縮小。
+    </div>
+  </div>
+
+  <script>
+    // B4/S45 ルール物理エンジン
+    const B_RULES = [4];
+    const S_RULES = [4, 5];
+
+    const NEIGHBORS = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          if (dx === 0 && dy === 0 && dz === 0) continue;
+          NEIGHBORS.push([dx, dy, dz]);
+        }
+      }
+    }
+
+    function pureStep(current) {
+      const counts = new Map();
+      for (const k of current) {
+        const [x,y,z] = k.split(',').map(Number);
+        for (const [dx,dy,dz] of NEIGHBORS) {
+          const nk = (x+dx) + ',' + (y+dy) + ',' + (z+dz);
+          counts.set(nk, (counts.get(nk) || 0) + 1);
+        }
+      }
+      const next = new Set();
+      for (const [k, cnt] of counts.entries()) {
+        const alive = current.has(k);
+        if (alive && S_RULES.includes(cnt)) next.add(k);
+        else if (!alive && B_RULES.includes(cnt)) next.add(k);
+      }
+      return next;
+    }
+
+    // 基本パーツデータ
+    const init7 = [
+      [0,0,0], [0,2,0], [0,1,0],
+      [0,1,1], [1,0,1], [1,2,1], [1,1,1]
+    ];
+    const osc8 = [
+      [0,1,0],[0,2,0],[0,3,0],[1,3,0],
+      [1,0,0],[2,0,0],[2,1,0],[2,2,0]
+    ];
+    const still6 = [
+      [0,1,1],[0,2,0],[0,2,1],
+      [1,1,0],[1,1,1],[1,2,0]
+    ];
+
+    // 砲台本体(28セル) + 銃身内の初弾(7セル) = 計35セルの完全発射体制
+    function buildGun(ox, oy, oz, dirX = 1, dirZ = 1, withBullet = true) {
+      const cells = [];
+      osc8.forEach(([x,y,z]) => cells.push([ox + x * dirX, oy + y, oz + z * dirZ]));
+      osc8.forEach(([x,y,z]) => cells.push([ox + (10 - x) * dirX, oy + y, oz + z * dirZ]));
+      still6.forEach(([x,y,z]) => {
+        cells.push([ox + (x + 4) * dirX, oy + (y + 6), oz + z * dirZ]);
+        cells.push([ox + (x + 4) * dirX, oy + (y - 5), oz + z * dirZ]);
+      });
+      if (withBullet) {
+        init7.forEach(([x,y,z]) => {
+          cells.push([ox + (x + 5) * dirX, oy + (y + 1), oz + (z + 4) * dirZ]);
+        });
+      }
+      return cells;
+    }
+
+    // 状態管理
+    let currentTool = 'gunA';
+    let isSimulating = false;
+    let currentStep = 0;
+    let initialCells = new Set();
+    let liveCells = new Set();
+
+    function setTool(t) {
+      currentTool = t;
+      document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tool-' + t).classList.add('active');
+    }
+
+    // Three.js セットアップ
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050811);
+    scene.fog = new THREE.FogExp2(0x050811, 0.004);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 70, 110);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 0, 10);
+
+    // ライティング
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dLight = new THREE.DirectionalLight(0x58a6ff, 0.8);
+    dLight.position.set(30, 80, 40);
+    scene.add(dLight);
+
+    // クリック判定用平面
+    const planeGeo = new THREE.PlaneGeometry(300, 300);
+    planeGeo.rotateX(-Math.PI / 2);
+    const planeMat = new THREE.MeshBasicMaterial({ visible: false });
+    const groundPlane = new THREE.Mesh(planeGeo, planeMat);
+    scene.add(groundPlane);
+
+    // グリッド
+    const grid = new THREE.GridHelper(200, 50, 0x30363d, 0x161b22);
+    grid.position.y = -0.5;
+    scene.add(grid);
+
+    // インスタンスメッシュ
+    const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+    const material = new THREE.MeshLambertMaterial({ color: 0x38bdf8 });
+    let cellMesh = null;
+
+    function renderCells() {
+      if (cellMesh) {
+        scene.remove(cellMesh);
+        cellMesh.geometry.dispose();
+      }
+
+      const arr = Array.from(liveCells).map(k => k.split(',').map(Number));
+      document.getElementById('cell-count').innerText = arr.length;
+      document.getElementById('step-count').innerText = currentStep;
+
+      if (arr.length === 0) return;
+
+      cellMesh = new THREE.InstancedMesh(geometry, material, arr.length);
+      const dummy = new THREE.Object3D();
+      arr.forEach(([x,y,z], i) => {
+        dummy.position.set(x, y, z);
+        dummy.updateMatrix();
+        cellMesh.setMatrixAt(i, dummy.matrix);
+      });
+      cellMesh.instanceMatrix.needsUpdate = true;
+      scene.add(cellMesh);
+    }
+
+    // デフォルト初期配置: 4基の自立砲台（A, B, C, RESET）＋ 加算アタッチメント
+    function setupDefaultDemo() {
+      initialCells.clear();
+      // 1. 演算砲台 A (左奥: X=-24, Z=-20)
+      buildGun(-24, 0, -20, 1, 1).forEach(([x,y,z]) => initialCells.add(x + ',' + y + ',' + z));
+      // 2. 演算砲台 B (右手前: X=16, Z=24)
+      buildGun(16, 0, 24, -1, -1).forEach(([x,y,z]) => initialCells.add(x + ',' + y + ',' + z));
+      // 3. 同期弾砲台 C (右奥: X=16, Z=38)
+      buildGun(16, 0, 38, -1, -1).forEach(([x,y,z]) => initialCells.add(x + ',' + y + ',' + z));
+      // 4. 遠方RESET砲台 (手前正面: X=-3, Z=54)
+      buildGun(-3, 0, 54, 1, -1).forEach(([x,y,z]) => initialCells.add(x + ',' + y + ',' + z));
+      // 5. 中央演算アタッチメント (X=-4, Z=2, Y=4)
+      still6.forEach(([x,y,z]) => initialCells.add((x - 4) + ',' + (y + 4) + ',' + (z + 2)));
+
+      liveCells = new Set(initialCells);
+      renderCells();
+    }
+
+    // クリック配置
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    window.addEventListener('pointerdown', (e) => {
+      // 左クリックのみ
+      if (e.button !== 0) return;
+      if (e.clientX < 470 && e.clientY < 400) return; // UIパネル上は無視
+
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObject(groundPlane);
+      if (intersects.length > 0) {
+        const p = intersects[0].point;
+        const gx = Math.round(p.x / 2) * 2;
+        const gz = Math.round(p.z / 2) * 2;
+
+        if (currentTool === 'gunA') {
+          const cells = buildGun(gx, 0, gz, 1, 1, true);
+          cells.forEach(([x,y,z]) => {
+            initialCells.add(x + ',' + y + ',' + z);
+            liveCells.add(x + ',' + y + ',' + z);
+          });
+        } else if (currentTool === 'gunB') {
+          const cells = buildGun(gx, 0, gz, -1, -1, true);
+          cells.forEach(([x,y,z]) => {
+            initialCells.add(x + ',' + y + ',' + z);
+            liveCells.add(x + ',' + y + ',' + z);
+          });
+        } else if (currentTool === 'bulletA') {
+          init7.forEach(([x,y,z]) => {
+            initialCells.add((gx + x) + ',' + (y + 1) + ',' + (gz + z));
+            liveCells.add((gx + x) + ',' + (y + 1) + ',' + (gz + z));
+          });
+        } else if (currentTool === 'bulletB') {
+          init7.forEach(([x,y,z]) => {
+            initialCells.add((gx - x) + ',' + (y + 1) + ',' + (gz - z));
+            liveCells.add((gx - x) + ',' + (y + 1) + ',' + (gz - z));
+          });
+        } else if (currentTool === 'attach') {
+          still6.forEach(([x,y,z]) => {
+            initialCells.add((gx + x) + ',' + (y + 2) + ',' + (gz + z));
+            liveCells.add((gx + x) + ',' + (y + 2) + ',' + (gz + z));
+          });
+        } else if (currentTool === 'delete') {
+          // 周囲5マスのセルを削除
+          for (let dx = -5; dx <= 5; dx++) {
+            for (let dy = -10; dy <= 10; dy++) {
+              for (let dz = -5; dz <= 5; dz++) {
+                const k = (gx + dx) + ',' + dy + ',' + (gz + dz);
+                initialCells.delete(k);
+                liveCells.delete(k);
+              }
+            }
+          }
+        }
+        renderCells();
+      }
+    });
+
+    function toggleSim() {
+      isSimulating = !isSimulating;
+      const btn = document.getElementById('btn-run');
+      btn.innerText = isSimulating ? '⏸ 一時停止' : '▶ 物理実行 (B4/S45)';
+      btn.className = isSimulating ? 'ctrl-btn' : 'ctrl-btn btn-primary';
+    }
+
+    function stepPureSim() {
+      liveCells = pureStep(liveCells);
+      currentStep++;
+      renderCells();
+    }
+
+    function resetToInitial() {
+      isSimulating = false;
+      document.getElementById('btn-run').innerText = '▶ 物理実行 (B4/S45)';
+      document.getElementById('btn-run').className = 'ctrl-btn btn-primary';
+      currentStep = 0;
+      liveCells = new Set(initialCells);
+      renderCells();
+    }
+
+    function clearAll() {
+      isSimulating = false;
+      document.getElementById('btn-run').innerText = '▶ 物理実行 (B4/S45)';
+      document.getElementById('btn-run').className = 'ctrl-btn btn-primary';
+      currentStep = 0;
+      initialCells.clear();
+      liveCells.clear();
+      renderCells();
+    }
+
+    let lastTick = 0;
+    function animate(now) {
+      requestAnimationFrame(animate);
+      controls.update();
+      if (isSimulating && now - lastTick > 70) {
+        lastTick = now;
+        stepPureSim();
+      }
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    setupDefaultDemo();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎛️ 3D CA 純粋物理 万能論理ゲート・スタジオ (B4/S45 Logic Gates Lab)</title>
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg: #040711;
+      --panel-bg: rgba(13, 20, 36, 0.94);
+      --border: #1e293b;
+      --accent-blue: #38bdf8;
+      --accent-green: #00ff88;
+      --accent-amber: #f59e0b;
+      --accent-purple: #c084fc;
+      --accent-rose: #f43f5e;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    /* メインUIパネル (左上) */
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 460px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 20px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+    #ui-panel::-webkit-scrollbar { width: 4px; }
+    #ui-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(192, 132, 252, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(192, 132, 252, 0.4);
+    }
+    .desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+
+    /* ゲート選択タブ */
+    .gate-tabs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .gate-tab {
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 4px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .gate-tab:hover { background: #334155; color: #fff; }
+    .gate-tab.active {
+      background: #0284c7;
+      border-color: var(--accent-blue);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+    .gate-tab.universal {
+      border-color: rgba(192, 132, 252, 0.5);
+    }
+    .gate-tab.universal.active {
+      background: #7e22ce;
+      border-color: var(--accent-purple);
+      box-shadow: 0 0 12px rgba(192, 132, 252, 0.5);
+    }
+
+    /* 論理計算ディスプレイ */
+    .calc-box {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      text-align: center;
+    }
+    .calc-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .calc-label {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .calc-val {
+      font-size: 22px;
+      font-weight: 800;
+      font-family: monospace;
+    }
+    .val-1 {
+      color: var(--accent-green);
+      text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    }
+    .val-0 {
+      color: #475569;
+    }
+    .val-out {
+      color: var(--accent-purple);
+      text-shadow: 0 0 12px rgba(192, 132, 252, 0.6);
+    }
+
+    /* 入力パターン選択ボタン */
+    .input-cases {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .case-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 8px 6px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .case-btn:hover { background: #334155; border-color: #64748b; }
+    .case-btn.active {
+      background: #1e40af;
+      border-color: #60a5fa;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(96, 165, 250, 0.4);
+    }
+
+    .gate-info-card {
+      background: rgba(15, 23, 42, 0.7);
+      border-left: 3px solid var(--accent-blue);
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      font-size: 11.5px;
+      line-height: 1.5;
+    }
+
+    /* 再生・ステップ操作 */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #334155; border-color: var(--accent-blue); }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    input[type=range] {
+      flex: 1;
+      accent-color: var(--accent-blue);
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 11px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 9px; height: 9px; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-panel">
+    <h1>
+      <span>🎛️ 3D CA 万能論理ゲート</span>
+      <span class="badge">B4/S45 Pure</span>
+    </h1>
+    <div class="desc" id="gate-main-desc">
+      チートゼロ・境界壁ゼロ！正面衝突対消滅・結晶化・並走によって実現された3次元セル宇宙の万能論理回路。
+    </div>
+
+    <!-- ゲート選択タブ -->
+    <div class="gate-tabs">
+      <button class="gate-tab" id="tab-NOT" onclick="switchGate('NOT')">NOT<br><small>¬A</small></button>
+      <button class="gate-tab" id="tab-AND" onclick="switchGate('AND')">AND<br><small>A∧B</small></button>
+      <button class="gate-tab" id="tab-OR" onclick="switchGate('OR')">OR<br><small>A∨B</small></button>
+      <button class="gate-tab" id="tab-XOR" onclick="switchGate('XOR')">XOR<br><small>A⊕B</small></button>
+      <button class="gate-tab universal active" id="tab-NOR" onclick="switchGate('NOR')">👑 NOR<br><small>万能ゲート</small></button>
+    </div>
+
+    <!-- 論理ディスプレイ -->
+    <div class="calc-box">
+      <div class="calc-item" id="box-in-a">
+        <span class="calc-label">入力 A</span>
+        <span id="disp-a" class="calc-val val-0">0</span>
+      </div>
+      <div style="font-size:18px; color:var(--text-muted);" id="symbol-op">∧</div>
+      <div class="calc-item" id="box-in-b">
+        <span class="calc-label">入力 B</span>
+        <span id="disp-b" class="calc-val val-0">0</span>
+      </div>
+      <div style="font-size:18px; color:var(--text-muted);">=</div>
+      <div class="calc-item">
+        <span class="calc-label">出力 OUT</span>
+        <span id="disp-out" class="calc-val val-out">1</span>
+      </div>
+    </div>
+
+    <!-- 入力切り替えボタン -->
+    <div class="input-cases" id="input-cases-container">
+      <!-- JSで動的生成 -->
+    </div>
+
+    <div class="gate-info-card" id="gate-info">
+      説明テキスト
+    </div>
+
+    <!-- コントロール -->
+    <div class="controls">
+      <button class="btn" id="play-btn" onclick="togglePlay()">⏸ 一時停止</button>
+      <button class="btn" onclick="prevStep()">◀</button>
+      <button class="btn" onclick="nextStep()">▶</button>
+      <button class="btn" onclick="resetSim()">↺ 最初から</button>
+    </div>
+
+    <div class="slider-row">
+      <span>Step: <span id="time-val">0</span> / <span id="max-time">24</span></span>
+      <input type="range" id="time-slider" min="0" max="24" value="0" oninput="onSlider(this.value)">
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="dot" style="background: #38bdf8;"></div> 入力弾丸 A / 基準弾 C</div>
+      <div class="legend-item"><div class="dot" style="background: #fb923c;"></div> 入力弾丸 B</div>
+      <div class="legend-item"><div class="dot" style="background: #facc15;"></div> 衝突スパーク</div>
+      <div class="legend-item"><div class="dot" style="background: #c084fc;"></div> 出力受光部 / 結晶</div>
+    </div>
+  </div>
+
+  <script>
+    // ゲートデータ読み込み
+    let GATES_DATA = null;
+    let currentGate = "NOR";
+    let currentCase = "0,0";
+    let currentStep = 0;
+    let isPlaying = true;
+    let playInterval = null;
+
+    // Three.js シーン
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040711);
+    scene.fog = new THREE.FogExp2(0x040711, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(18, 16, 22);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(-2, 0, 4);
+
+    const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambLight);
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight1.position.set(30, 50, 30);
+    scene.add(dirLight1);
+
+    const grid = new THREE.GridHelper(40, 40, 0x1e293b, 0x0a1020);
+    grid.position.y = -4;
+    scene.add(grid);
+
+    // 出力受光ゾーン (ワイヤーフレーム)
+    const outBoxGeo = new THREE.BoxGeometry(5, 5, 5);
+    const outBoxMat = new THREE.MeshBasicMaterial({ color: 0xc084fc, wireframe: true, transparent: true, opacity: 0.35 });
+    const outZone = new THREE.Mesh(outBoxGeo, outBoxMat);
+    outZone.position.set(-6, 1, 7);
+    scene.add(outZone);
+
+    // セル描画用 InstancedMesh
+    const MAX_CELLS = 200;
+    const cellGeo = new THREE.BoxGeometry(0.88, 0.88, 0.88);
+    const cellMat = new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.5, vertexColors: true });
+    const instancedMesh = new THREE.InstancedMesh(cellGeo, cellMat, MAX_CELLS);
+    scene.add(instancedMesh);
+
+    const dummy = new THREE.Object3D();
+    const colorObj = new THREE.Color();
+
+    // 外部 JSON からロード
+    fetch('pure_logic_gates_data.json')
+      .then(res => res.json())
+      .then(data => {
+        GATES_DATA = data.gates;
+        switchGate('NOR');
+        requestAnimationFrame(animate);
+      })
+      .catch(err => {
+        console.error("Failed to load gates data:", err);
+      });
+
+    function switchGate(gateName) {
+      currentGate = gateName;
+      document.querySelectorAll('.gate-tab').forEach(el => el.classList.remove('active'));
+      const activeTab = document.getElementById('tab-' + gateName);
+      if (activeTab) activeTab.classList.add('active');
+
+      const gate = GATES_DATA[gateName];
+      document.getElementById('gate-main-desc').innerText = gate.desc;
+
+      // 入力ボタンの生成
+      const container = document.getElementById('input-cases-container');
+      container.innerHTML = '';
+      const caseKeys = Object.keys(gate.cases);
+
+      caseKeys.forEach((key, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'case-btn' + (idx === 0 ? ' active' : '');
+        btn.id = 'case-' + key.replace(/[^a-zA-Z0-9]/g, '_');
+        btn.innerText = key;
+        btn.onclick = () => selectCase(key);
+        container.appendChild(btn);
+      });
+
+      // NOT ゲートの場合は入力Bを非表示
+      if (gateName === 'NOT') {
+        document.getElementById('symbol-op').innerText = '¬';
+        document.getElementById('box-in-b').style.display = 'none';
+      } else {
+        document.getElementById('symbol-op').innerText = gate.symbol.includes('∧') ? '∧' : (gate.symbol.includes('∨') ? '∨' : (gate.symbol.includes('⊕') ? '⊕' : 'NAND'));
+        document.getElementById('box-in-b').style.display = 'flex';
+      }
+
+      selectCase(caseKeys[0]);
+    }
+
+    function selectCase(caseKey) {
+      currentCase = caseKey;
+      document.querySelectorAll('.case-btn').forEach(el => el.classList.remove('active'));
+      const activeBtn = document.getElementById('case-' + caseKey.replace(/[^a-zA-Z0-9]/g, '_'));
+      if (activeBtn) activeBtn.classList.add('active');
+
+      currentStep = 0;
+      updateView();
+    }
+
+    function updateView() {
+      if (!GATES_DATA) return;
+      const gate = GATES_DATA[currentGate];
+      const caseData = gate.cases[currentCase];
+      const frames = caseData.frames;
+      const cells = frames[currentStep] || [];
+
+      document.getElementById('time-val').innerText = currentStep;
+      document.getElementById('time-slider').value = currentStep;
+      document.getElementById('max-time').innerText = frames.length - 1;
+      document.getElementById('time-slider').max = frames.length - 1;
+
+      // ディスプレイ更新
+      if (currentGate === 'NOT') {
+        const a = caseData.inputA;
+        document.getElementById('disp-a').innerText = a;
+        document.getElementById('disp-a').className = 'calc-val ' + (a ? 'val-1' : 'val-0');
+      } else {
+        const a = caseData.a;
+        const b = caseData.b;
+        document.getElementById('disp-a').innerText = a;
+        document.getElementById('disp-a').className = 'calc-val ' + (a ? 'val-1' : 'val-0');
+        document.getElementById('disp-b').innerText = b;
+        document.getElementById('disp-b').className = 'calc-val ' + (b ? 'val-1' : 'val-0');
+      }
+
+      const out = caseData.output;
+      const dispOut = document.getElementById('disp-out');
+      dispOut.innerText = out;
+      dispOut.className = 'calc-val ' + (out ? 'val-1' : 'val-0');
+
+      document.getElementById('gate-info').innerHTML =
+        `<strong>【${gate.name} ゲート: ${currentCase}】</strong><br>
+        ・論理出力: <strong>${out}</strong><br>
+        ・現在ステップ: t = ${currentStep} / ${frames.length - 1}<br>
+        ・空間セル数: ${cells.length} セル`;
+
+      // 3D セル描画
+      let idx = 0;
+      for (const [x, y, z] of cells) {
+        if (idx >= MAX_CELLS) break;
+        dummy.position.set(x, y, z);
+        dummy.updateMatrix();
+        instancedMesh.setMatrixAt(idx, dummy.matrix);
+
+        // カラー判定
+        if (currentStep >= 8 && currentStep <= 14 && cells.length > 14) {
+          colorObj.setHex(0xfacc15); // スパーク
+        } else if (x > -3) {
+          colorObj.setHex(0x38bdf8); // A / C
+        } else {
+          colorObj.setHex(0xfb923c); // B
+        }
+
+        instancedMesh.setColorAt(idx, colorObj);
+        idx++;
+      }
+
+      instancedMesh.count = idx;
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      document.getElementById('play-btn').innerText = isPlaying ? '⏸ 一時停止' : '▶ 再生';
+    }
+
+    function nextStep() {
+      const frames = GATES_DATA[currentGate].cases[currentCase].frames;
+      if (currentStep < frames.length - 1) currentStep++;
+      updateView();
+    }
+
+    function prevStep() {
+      if (currentStep > 0) currentStep--;
+      updateView();
+    }
+
+    function resetSim() {
+      currentStep = 0;
+      updateView();
+    }
+
+    function onSlider(v) {
+      currentStep = parseInt(v, 10);
+      updateView();
+    }
+
+    let lastTime = 0;
+    const stepInterval = 120;
+    function animate(time) {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      if (isPlaying && GATES_DATA) {
+        if (time - lastTime > stepInterval) {
+          const frames = GATES_DATA[currentGate].cases[currentCase].frames;
+          if (currentStep < frames.length - 1) {
+            currentStep++;
+          } else {
+            currentStep = 0;
+          }
+          updateView();
+          lastTime = time;
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

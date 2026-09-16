@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📂 3D CA 万能 JSON ビューア＆カラーカスタマイザー</title>
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg: #040711;
+      --panel-bg: rgba(13, 20, 36, 0.92);
+      --border: #1e293b;
+      --accent-blue: #38bdf8;
+      --accent-green: #00ff88;
+      --accent-amber: #f59e0b;
+      --accent-purple: #c084fc;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    /* メインUIパネル (左側) */
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 440px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+    #ui-panel::-webkit-scrollbar { width: 4px; }
+    #ui-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    h1 {
+      margin: 0 0 4px 0;
+      font-size: 17.5px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+    .desc {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+
+    /* ドラッグ＆ドロップゾーン */
+    .drop-zone {
+      border: 2px dashed #334155;
+      border-radius: 10px;
+      padding: 14px 12px;
+      text-align: center;
+      background: rgba(15, 23, 42, 0.6);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 12px;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent-blue);
+      background: rgba(56, 189, 248, 0.08);
+    }
+    .drop-icon { font-size: 24px; margin-bottom: 2px; }
+    .drop-text { font-size: 12.5px; font-weight: 600; color: #e2e8f0; }
+    .drop-sub { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+
+    /* 折りたたみセクション */
+    details {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    summary {
+      padding: 7px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--accent-blue);
+      user-select: none;
+    }
+    .details-content {
+      padding: 8px 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    textarea {
+      width: 100%;
+      height: 80px;
+      background: #090d16;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #38bdf8;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 8px;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: var(--accent-blue); }
+
+    /* コントロール群 */
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #2563eb; border-color: #38bdf8; }
+    .btn.primary { background: #0284c7; border-color: #38bdf8; }
+    .btn.primary:hover { background: #0369a1; }
+    .btn.success { background: #16a34a; border-color: #22c55e; }
+    .btn.success:hover { background: #15803d; }
+
+    /* 設定グループ */
+    .setting-group {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .setting-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 11.5px;
+    }
+    .setting-row:last-child { margin-bottom: 0; }
+    .setting-label { color: var(--text-muted); font-weight: 500; }
+    select, input[type="text"] {
+      background: #090d16;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    select:focus, input[type="text"]:focus { outline: none; border-color: var(--accent-blue); }
+
+    /* カラーピッカー UI */
+    input[type="color"] {
+      -webkit-appearance: none;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      width: 32px;
+      height: 24px;
+      cursor: pointer;
+      background: none;
+      padding: 0;
+    }
+    input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
+
+    /* クイックテーマボタンパレット */
+    .theme-palette {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-top: 6px;
+      margin-bottom: 8px;
+    }
+    .theme-btn {
+      padding: 4px;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #cbd5e1;
+      background: #1e293b;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .theme-btn:hover { border-color: var(--accent-blue); transform: scale(1.02); }
+
+    /* スライダー */
+    .slider-container { margin-bottom: 10px; }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      margin-bottom: 3px;
+    }
+    input[type="range"] {
+      width: 100%;
+      height: 5px;
+      background: #1e293b;
+      border-radius: 3px;
+      outline: none;
+      accent-color: var(--accent-blue);
+      cursor: pointer;
+    }
+
+    /* 統計カード */
+    .stats-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
+      margin-bottom: 12px;
+    }
+    .stat-item { display: flex; justify-content: space-between; }
+    .stat-label { color: var(--text-muted); }
+    .stat-val { font-weight: 700; color: #38bdf8; font-family: monospace; }
+
+    /* 全画面ドラッグオーバー時のオーバーレイ */
+    #drop-overlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(4, 7, 17, 0.88);
+      border: 4px dashed var(--accent-blue);
+      z-index: 9999;
+      pointer-events: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    #drop-overlay.active { display: flex; }
+    .drop-overlay-text {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+
+  <!-- 全画面ドラッグオーバー表示 -->
+  <div id="drop-overlay">
+    <div style="font-size: 60px;">📥</div>
+    <div class="drop-overlay-text">JSON ファイルをドロップして即時可視化</div>
+  </div>
+
+  <!-- UIコントロールパネル -->
+  <div id="ui-panel">
+    <h1>
+      <span>📂 3D CA 万能 JSON ビューア</span>
+      <span class="badge">Universal + Colors</span>
+    </h1>
+    <div class="desc">
+      JSONファイルをドロップ／ペーストして即時3D可視化。セルの色・グラデーション・背景色・サイズも自由自在にカスタム可能！
+    </div>
+
+    <!-- ドロップゾーン -->
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">📥</div>
+      <div class="drop-text">ここに JSON ファイルをドラッグ＆ドロップ</div>
+      <div class="drop-sub">またはクリックしてファイルを選択 (.json / .txt)</div>
+      <input type="file" id="file-input" accept=".json,.txt" style="display: none;">
+    </div>
+
+    <!-- テキストペースト（折りたたみ） -->
+    <details>
+      <summary>📝 または JSON テキストを直接コピペする</summary>
+      <div class="details-content">
+        <textarea id="paste-box" placeholder="例: [[0,0,0],[0,1,0],[0,2,0], ...] や { 'history': [...] }"></textarea>
+        <button id="btn-parse-paste" class="btn primary" style="width: 100%; margin-top: 6px;">
+          ▶ ペーストした JSON を読み込む
+        </button>
+      </div>
+    </details>
+
+    <!-- 組み込みプリセットサンプル -->
+    <div class="setting-group">
+      <div class="setting-row">
+        <span class="setting-label">🌟 サンプルプリセット:</span>
+        <select id="preset-select">
+          <option value="glider7_b4s45">7セル自走グライダー (B4/S45)</option>
+          <option value="crystal6_b4s45">6セル立方体静止結晶 (B4/S45)</option>
+          <option value="polarizer_task1">🔬 課題①: 空間スリット偏光フィルター完全透過 (B4/S45)</option>
+          <option value="reflector_bounce">🪞 弾丸衝突による直角偏向反射 (B4/S45)</option>
+          <option value="half_adder_1plus1">🧮 1+1 半加算器: 正面衝突対消滅 ➔ 6セル結晶創生 (1+1=2) (B4/S45)</option>
+          <option value="gate_nor_universal">👑 万能 NOR ゲート: 0 NOR 0 = 1 (完全同一座標系) (B4/S45)</option>
+          <option value="gate_not_inverter">⚡ NOT ゲート: 1 ➔ 0 (対消滅インバータ) (B4/S45)</option>
+          <option value="gate_and_crystal">🤝 AND ゲート: 1 ∧ 1 = 1 (6セル結晶創生ラッチ) (B4/S45)</option>
+          <option value="glider10_b6s567">10セル偏平宇宙船 (Life 5766)</option>
+          <option value="replicator15_b5s4567">15セル有機的自己複製子 (B5/S4567)</option>
+          <option value="twist6_b3s145">6セル 90°ツイスト自己複製子 (B3/S145)</option>
+          <option value="c3_b35s4">9セル C3対角スクリュー (B35/S4)</option>
+        </select>
+      </div>
+      <div class="setting-row" style="margin-top: 6px;">
+        <span class="setting-label">⚙️ 適用ルール:</span>
+        <input type="text" id="rule-input" value="B4/S45" style="width: 100px; text-align: center;">
+      </div>
+    </div>
+
+    <!-- 🎨 カラー＆外観カスタマイズ セクション -->
+    <div class="setting-group">
+      <div class="setting-title">🎨 カラー＆外観カスタマイザー</div>
+
+      <!-- クイックテーマ選択 -->
+      <div class="theme-palette">
+        <button class="theme-btn" data-theme="neon" style="border-left: 3px solid #00ffff;">🌌 ネオン</button>
+        <button class="theme-btn" data-theme="emerald" style="border-left: 3px solid #00ff88;">🌿 エメラルド</button>
+        <button class="theme-btn" data-theme="solar" style="border-left: 3px solid #f59e0b;">🔥 ソーラー</button>
+        <button class="theme-btn" data-theme="ice" style="border-left: 3px solid #60a5fa;">🧊 アイス</button>
+        <button class="theme-btn" data-theme="synth" style="border-left: 3px solid #ec4899;">🔮 シンセ</button>
+        <button class="theme-btn" data-theme="rainbow" style="border-left: 3px solid #a855f7;">🌈 レインボー</button>
+        <button class="theme-btn" data-theme="clusters" style="border-left: 3px solid #f43f5e;">🧩 クラスタ別</button>
+        <button class="theme-btn" data-theme="paper" style="border-left: 3px solid #ffffff; background:#334155;">📄 白背景/論文</button>
+      </div>
+
+      <!-- カラーモード設定 -->
+      <div class="setting-row">
+        <span class="setting-label">配色モード:</span>
+        <select id="color-mode">
+          <option value="gradient">2色グラデーション (A ➔ B)</option>
+          <option value="single">単色 (Color A)</option>
+          <option value="rainbow">フルスペクトラム (虹色)</option>
+          <option value="clusters">26近傍クラスタ別色分け</option>
+        </select>
+      </div>
+
+      <!-- カラーピッカー群 -->
+      <div class="setting-row">
+        <span class="setting-label">セル色 A (下層 / 主色):</span>
+        <input type="color" id="color-a" value="#00ffff">
+      </div>
+      <div class="setting-row" id="row-color-b">
+        <span class="setting-label">セル色 B (上層 / 終点):</span>
+        <input type="color" id="color-b" value="#c084fc">
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">宇宙背景色:</span>
+        <input type="color" id="bg-color" value="#040711">
+      </div>
+
+      <!-- セル外観設定 -->
+      <div class="setting-row" style="margin-top: 8px;">
+        <span class="setting-label">セルサイズ (<span id="label-voxel-size">0.88</span>):</span>
+        <input type="range" id="slider-voxel-size" min="0.3" max="1.0" step="0.02" value="0.88" style="width: 140px;">
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">透明度 (<span id="label-opacity">1.0</span>):</span>
+        <input type="range" id="slider-opacity" min="0.2" max="1.0" step="0.05" value="1.0" style="width: 140px;">
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">ワイヤーフレーム表示:</span>
+        <input type="checkbox" id="check-wireframe" style="cursor: pointer;">
+      </div>
+    </div>
+
+    <!-- タイムライン操作 -->
+    <div class="slider-container">
+      <div class="slider-header">
+        <span style="font-weight: 600;">世代タイムライン:</span>
+        <span id="step-display" style="font-weight: 700; color: var(--accent-blue);">t = 0 / 0</span>
+      </div>
+      <input type="range" id="step-slider" min="0" max="0" value="0">
+    </div>
+
+    <!-- 再生コントロール -->
+    <div class="btn-row">
+      <button id="btn-play" class="btn success">▶ 再生</button>
+      <button id="btn-step" class="btn">+1 ステップ</button>
+    </div>
+    <div class="btn-row">
+      <button id="btn-generate" class="btn primary">⚡ +16世代 自動計算</button>
+      <button id="btn-reset" class="btn">↺ 初期状態 (t=0)</button>
+    </div>
+
+    <!-- 統計情報 -->
+    <div class="stats-card">
+      <div class="stat-item">
+        <span class="stat-label">生セル数:</span>
+        <span id="stat-cells" class="stat-val">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">クラスタ数:</span>
+        <span id="stat-clusters" class="stat-val">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">サイズ (XYZ):</span>
+        <span id="stat-bbox" class="stat-val">0×0×0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">重心位置:</span>
+        <span id="stat-centroid" class="stat-val">(0,0,0)</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 8px;">
+      <button id="btn-cam-reset" class="btn" style="flex: 1;">📷 視点リセット</button>
+      <button id="btn-export-json" class="btn" style="flex: 1;">💾 JSON保存</button>
+    </div>
+  </div>
+
+  <script>
+    // ====================================================
+    // 1. 3D CA 物理シミュレータ
+    // ====================================================
+    const NEIGHBORS_26 = [];
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dz = -1; dz <= 1; dz++)
+          if (dx || dy || dz) NEIGHBORS_26.push([dx, dy, dz]);
+
+    function parseRuleStr(str) {
+      const match = str.trim().toUpperCase().match(/^B([0-9]+)\/S([0-9]+)$/);
+      if (!match) return { b: [4], s: [4, 5], str: "B4/S45" };
+      return {
+        b: match[1].split('').map(Number),
+        s: match[2].split('').map(Number),
+        str: str.trim().toUpperCase()
+      };
+    }
+
+    function simulateNext(cellList, ruleStr) {
+      const { b, s } = parseRuleStr(ruleStr);
+      const counts = new Map();
+      const aliveSet = new Set();
+      for (const [x, y, z] of cellList) {
+        const k = `${x},${y},${z}`;
+        aliveSet.add(k);
+        for (const [dx, dy, dz] of NEIGHBORS_26) {
+          const nk = `${x + dx},${y + dy},${z + dz}`;
+          counts.set(nk, (counts.get(nk) || 0) + 1);
+        }
+      }
+      const nextList = [];
+      for (const [k, cnt] of counts.entries()) {
+        const alive = aliveSet.has(k);
+        if ((alive && s.includes(cnt)) || (!alive && b.includes(cnt))) {
+          nextList.push(k.split(',').map(Number));
+        }
+      }
+      return nextList;
+    }
+
+    function getClusters(cellList) {
+      const map = new Map();
+      cellList.forEach(c => map.set(`${c[0]},${c[1]},${c[2]}`, c));
+      const visited = new Set();
+      const clusters = [];
+      for (const c of cellList) {
+        const k = `${c[0]},${c[1]},${c[2]}`;
+        if (visited.has(k)) continue;
+        const cl = [];
+        const q = [c];
+        visited.add(k);
+        while (q.length > 0) {
+          const curr = q.shift();
+          cl.push(curr);
+          for (const [dx, dy, dz] of NEIGHBORS_26) {
+            const nk = `${curr[0]+dx},${curr[1]+dy},${curr[2]+dz}`;
+            if (map.has(nk) && !visited.has(nk)) {
+              visited.add(nk);
+              q.push(map.get(nk));
+            }
+          }
+        }
+        clusters.push(cl);
+      }
+      return clusters;
+    }
+
+    // ====================================================
+    // 2. プリセットデータ
+    // ====================================================
+    const PRESETS = {
+      glider7_b4s45: {
+        rule: "B4/S45",
+        c0: [[0,0,0],[0,1,0],[0,2,0],[0,1,1],[1,0,1],[1,1,1],[1,2,1]]
+      },
+      crystal6_b4s45: {
+        rule: "B4/S45",
+        c0: [[-2,-1,3],[-2,0,2],[-1,-1,3],[-1,0,2],[-1,0,3],[-2,-1,2]]
+      },
+      polarizer_task1: {
+        rule: "B4/S45",
+        c0: [
+          // 7-Cell Glider
+          [0,0,0], [0,1,0], [0,2,0], [0,1,1], [1,0,1], [1,1,1], [1,2,1],
+          // 12-Cell Slit Filter (Twin Crystals at gap=3)
+          [-10,-5,11], [-10,-4,10], [-9,-5,11], [-9,-4,10], [-9,-4,11], [-10,-5,10],
+          [-10,5,11], [-10,6,10], [-9,5,11], [-9,6,10], [-9,6,11], [-10,5,10]
+        ]
+      },
+      reflector_bounce: {
+        rule: "B4/S45",
+        c0: [
+          // Glider A moving in (-1, 0, 1)
+          [0,0,0], [0,1,0], [0,2,0], [0,1,1], [1,0,1], [1,1,1], [1,2,1],
+          // Glider B moving in (0, -1, 1) at offset [-3, -2, 3]
+          [-3,-2,3], [-2,-2,3], [-1,-2,3], [-2,-2,4], [-3,-1,4], [-2,-1,4], [-1,-1,4]
+        ]
+      },
+      half_adder_1plus1: {
+        rule: "B4/S45",
+        c0: [
+          // Glider A moving in (-1, 0, 1)
+          [0,0,0], [0,1,0], [0,2,0], [0,1,1], [1,0,1], [1,1,1], [1,2,1],
+          // Glider B moving in (1, 0, -1) at offset [-5, -3, 7]
+          [-5,-3,7], [-5,-2,7], [-5,-1,7], [-5,-2,6], [-6,-3,6], [-6,-2,6], [-6,-1,6]
+        ]
+      },
+      gate_nor_universal: {
+        rule: "B4/S45",
+        c0: [
+          // Glider C (基準弾): (-1, 0, 1)
+          [0,0,0], [0,1,0], [0,2,0], [0,1,1], [1,0,1], [1,1,1], [1,2,1],
+          // Glider A (入力弾): (1, 0, -1) offset [-5, -2, 7]
+          [-5,-2,7], [-5,-1,7], [-5,0,7], [-5,-1,6], [-6,-2,6], [-6,-1,6], [-6,0,6]
+        ]
+      },
+      gate_not_inverter: {
+        rule: "B4/S45",
+        c0: [
+          // Glider C (基準弾): (-1, 0, 1)
+          [0,0,0], [0,1,0], [0,2,0], [0,1,1], [1,0,1], [1,1,1], [1,2,1],
+          // Glider A (入力弾): (1, 0, -1) offset [-5, -2, 7]
+          [-5,-2,7], [-5,-1,7], [-5,0,7], [-5,-1,6], [-6,-2,6], [-6,-1,6], [-6,0,6]
+        ]
+      },
+      gate_and_crystal: {
+        rule: "B4/S45",
+        c0: [
+          // Glider A: (-1, 0, 1)
+          [0,0,0], [0,1,0], [0,2,0], [0,1,1], [1,0,1], [1,1,1], [1,2,1],
+          // Glider B: (1, 0, -1) offset [-5, -3, 7]
+          [-5,-3,7], [-5,-2,7], [-5,-1,7], [-5,-2,6], [-6,-3,6], [-6,-2,6], [-6,-1,6]
+        ]
+      },
+      glider10_b6s567: {
+        rule: "B6/S567",
+        c0: [[0,1,0],[0,1,1],[1,2,0],[1,2,1],[2,0,0],[2,0,1],[2,1,0],[2,1,1],[2,2,0],[2,2,1]]
+      },
+      replicator15_b5s4567: {
+        rule: "B5/S4567",
+        c0: [[0,0,1],[2,2,1],[0,1,1],[2,1,1],[0,1,2],[2,1,2],[0,2,1],[2,0,1],[1,0,1],[1,2,1],[1,0,2],[1,2,2],[1,1,0],[1,2,0],[1,0,0]]
+      },
+      twist6_b3s145: {
+        rule: "B3/S145",
+        c0: [[0,1,1],[2,1,1],[1,1,1],[1,1,2],[1,2,2],[1,0,2]]
+      },
+      c3_b35s4: {
+        rule: "B35/S4",
+        c0: [[1,1,0],[1,0,1],[0,1,1],[1,1,2],[1,2,1],[2,1,1],[2,0,1],[0,1,2],[1,2,0]]
+      }
+    };
+
+    // ====================================================
+    // 3. アプリケーション状態
+    // ====================================================
+    let history = [];
+    let currentStep = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    // ====================================================
+    // 4. Three.js 3D レンダリング
+    // ====================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x040711, 0.003);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 4000);
+    camera.position.set(22, 18, 28);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0x040711);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // ライト
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambientLight);
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight1.position.set(40, 60, 50);
+    scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0x88bbff, 0.6);
+    dirLight2.position.set(-40, -30, -50);
+    scene.add(dirLight2);
+
+    // グリッド
+    let gridHelper = new THREE.GridHelper(100, 50, 0x1e293b, 0x0a1020);
+    gridHelper.position.y = -6;
+    scene.add(gridHelper);
+
+    // インスタンスメッシュ管理
+    const MAX_INSTANCES = 8000;
+    let currentVoxelSize = 0.88;
+    let boxGeometry = new THREE.BoxGeometry(currentVoxelSize, currentVoxelSize, currentVoxelSize);
+    let boxMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.3,
+      metalness: 0.2,
+      vertexColors: true,
+      transparent: true,
+      opacity: 1.0,
+      wireframe: false
+    });
+    let instancedMesh = new THREE.InstancedMesh(boxGeometry, boxMaterial, MAX_INSTANCES);
+    scene.add(instancedMesh);
+
+    function updateBoxGeometry(size) {
+      currentVoxelSize = size;
+      scene.remove(instancedMesh);
+      boxGeometry.dispose();
+      boxGeometry = new THREE.BoxGeometry(size, size, size);
+      instancedMesh = new THREE.InstancedMesh(boxGeometry, boxMaterial, MAX_INSTANCES);
+      scene.add(instancedMesh);
+      renderCurrentStep();
+    }
+
+    const dummy = new THREE.Matrix4();
+    const colorHelper = new THREE.Color();
+    const colorA = new THREE.Color();
+    const colorB = new THREE.Color();
+
+    const CLUSTER_PALETTE = [
+      0x38bdf8, 0x00ff88, 0xf59e0b, 0xf43f5e, 0xc084fc,
+      0xe879f9, 0x22d3ee, 0xfacc15, 0x4ade80, 0xfb7185,
+      0x34d399, 0xa78bfa, 0x38bdf8, 0xf87171, 0xfbbf24
+    ];
+
+    function renderCurrentStep() {
+      const cells = history[currentStep] || [];
+      const count = Math.min(cells.length, MAX_INSTANCES);
+      instancedMesh.count = count;
+
+      if (count === 0) {
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
+        updateStats([], []);
+        return;
+      }
+
+      const colorMode = document.getElementById('color-mode').value;
+      colorA.set(document.getElementById('color-a').value);
+      colorB.set(document.getElementById('color-b').value);
+
+      let clusters = [];
+      const clusterMap = new Map();
+      if (colorMode === 'clusters') {
+        clusters = getClusters(cells);
+        clusters.forEach((cl, idx) => {
+          cl.forEach(pt => clusterMap.set(`${pt[0]},${pt[1]},${pt[2]}`, idx));
+        });
+      }
+
+      let minZ = Infinity, maxZ = -Infinity;
+      for (const c of cells) {
+        if (c[2] < minZ) minZ = c[2];
+        if (c[2] > maxZ) maxZ = c[2];
+      }
+      const zRange = Math.max(1, maxZ - minZ);
+
+      for (let i = 0; i < count; i++) {
+        const [x, y, z] = cells[i];
+        dummy.setPosition(x, y, z);
+        instancedMesh.setMatrixAt(i, dummy);
+
+        if (colorMode === 'gradient') {
+          const t = (z - minZ) / zRange;
+          colorHelper.copy(colorA).lerp(colorB, t);
+        } else if (colorMode === 'single') {
+          colorHelper.copy(colorA);
+        } else if (colorMode === 'rainbow') {
+          const t = (z - minZ) / zRange;
+          colorHelper.setHSL((0.6 - t * 0.85 + 1.0) % 1.0, 0.9, 0.55);
+        } else if (colorMode === 'clusters') {
+          const cIdx = clusterMap.get(`${x},${y},${z}`) || 0;
+          colorHelper.setHex(CLUSTER_PALETTE[cIdx % CLUSTER_PALETTE.length]);
+        }
+
+        instancedMesh.setColorAt(i, colorHelper);
+      }
+
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
+
+      updateStats(cells, clusters);
+    }
+
+    function updateStats(cells, clusters) {
+      document.getElementById('stat-cells').textContent = cells.length;
+      document.getElementById('step-display').textContent = `t = ${currentStep} / ${Math.max(0, history.length - 1)}`;
+      document.getElementById('step-slider').value = currentStep;
+
+      if (cells.length === 0) {
+        document.getElementById('stat-clusters').textContent = "0";
+        document.getElementById('stat-bbox').textContent = "0×0×0";
+        document.getElementById('stat-centroid').textContent = "(0,0,0)";
+        return;
+      }
+
+      if (!clusters || clusters.length === 0) clusters = getClusters(cells);
+      document.getElementById('stat-clusters').textContent = clusters.length;
+
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+      let sumX = 0, sumY = 0, sumZ = 0;
+
+      for (const [x, y, z] of cells) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+        sumX += x; sumY += y; sumZ += z;
+      }
+
+      const dx = maxX - minX + 1;
+      const dy = maxY - minY + 1;
+      const dz = maxZ - minZ + 1;
+      document.getElementById('stat-bbox').textContent = `${dx}×${dy}×${dz}`;
+
+      const cx = (sumX / cells.length).toFixed(1);
+      const cy = (sumY / cells.length).toFixed(1);
+      const cz = (sumZ / cells.length).toFixed(1);
+      document.getElementById('stat-centroid').textContent = `(${cx}, ${cy}, ${cz})`;
+    }
+
+    // ====================================================
+    // 5. カラーテーマプリセット設定
+    // ====================================================
+    const THEMES = {
+      neon: {
+        mode: "gradient", colorA: "#00ffff", colorB: "#c084fc", bg: "#040711", grid: 0x1e293b
+      },
+      emerald: {
+        mode: "gradient", colorA: "#00ff88", colorB: "#a3e635", bg: "#02120b", grid: 0x14532d
+      },
+      solar: {
+        mode: "gradient", colorA: "#f59e0b", colorB: "#ef4444", bg: "#140700", grid: 0x451a03
+      },
+      ice: {
+        mode: "gradient", colorA: "#38bdf8", colorB: "#f8fafc", bg: "#030a1a", grid: 0x1e3a8a
+      },
+      synth: {
+        mode: "gradient", colorA: "#ec4899", colorB: "#8b5cf6", bg: "#0f051d", grid: 0x4c1d95
+      },
+      rainbow: {
+        mode: "rainbow", colorA: "#00ffff", colorB: "#ff00ff", bg: "#040711", grid: 0x1e293b
+      },
+      clusters: {
+        mode: "clusters", colorA: "#38bdf8", colorB: "#f43f5e", bg: "#040711", grid: 0x1e293b
+      },
+      paper: {
+        mode: "single", colorA: "#1e293b", colorB: "#475569", bg: "#f8fafc", grid: 0xcbd5e1
+      }
+    };
+
+    function applyTheme(t) {
+      document.getElementById('color-mode').value = t.mode;
+      document.getElementById('color-a').value = t.colorA;
+      document.getElementById('color-b').value = t.colorB;
+      document.getElementById('bg-color').value = t.bg;
+
+      // 背景色反映
+      updateBackgroundColor(t.bg, t.grid);
+      renderCurrentStep();
+    }
+
+    function updateBackgroundColor(hexStr, gridColor = null) {
+      const col = new THREE.Color(hexStr);
+      renderer.setClearColor(col);
+      scene.fog.color.copy(col);
+
+      // ライト強度の明暗自動調整 (白背景なら強め、黒背景なら通常)
+      const isLight = col.getHSL({h:0,s:0,l:0}).l > 0.5;
+      ambientLight.intensity = isLight ? 1.2 : 0.85;
+      dirLight1.intensity = isLight ? 1.0 : 1.2;
+
+      // グリッド色の更新
+      scene.remove(gridHelper);
+      const gCol = gridColor || (isLight ? 0x94a3b8 : 0x1e293b);
+      const gSub = isLight ? 0xe2e8f0 : 0x0a1020;
+      gridHelper = new THREE.GridHelper(100, 50, gCol, gSub);
+      gridHelper.position.y = -6;
+      scene.add(gridHelper);
+    }
+
+    // ====================================================
+    // 6. JSON パーサー（スマート自動判別）
+    // ====================================================
+    function loadFromJsonData(data) {
+      try {
+        let parsedRule = null;
+        let parsedHistory = [];
+
+        if (Array.isArray(data)) {
+          if (data.length === 0) throw new Error("空の配列です");
+          if (typeof data[0][0] === 'number') {
+            parsedHistory = [data];
+          } else if (Array.isArray(data[0]) && Array.isArray(data[0][0])) {
+            parsedHistory = data;
+          } else if (typeof data[0] === 'object') {
+            const item = data[0];
+            if (item.ruleStr) parsedRule = item.ruleStr;
+            if (item.history) parsedHistory = item.history;
+            else if (item.coords) parsedHistory = [item.coords];
+            else if (item.c0) parsedHistory = [item.c0];
+          }
+        } else if (typeof data === 'object') {
+          if (data.ruleStr) parsedRule = data.ruleStr;
+          else if (data.rule) {
+            if (typeof data.rule === 'string') parsedRule = data.rule;
+            else if (data.rule.B && data.rule.S) parsedRule = `B${data.rule.B.join('')}/S${data.rule.S.join('')}`;
+          }
+
+          if (data.history && Array.isArray(data.history)) {
+            parsedHistory = data.history;
+          } else if (data.coords && Array.isArray(data.coords)) {
+            parsedHistory = [data.coords];
+          } else if (data.c0 && Array.isArray(data.c0)) {
+            parsedHistory = [data.c0];
+          } else if (data.glider_A && data.glider_B) {
+            parsedHistory = [data.glider_A.concat(data.glider_B)];
+          } else if (data.crystal_6 && data.reset_bullet_7) {
+            parsedHistory = [data.crystal_6.concat(data.reset_bullet_7)];
+          }
+        }
+
+        if (parsedHistory.length === 0) {
+          throw new Error("認識可能な 3D 座標データ ([x, y, z]) が見つかりませんでした");
+        }
+
+        history = parsedHistory;
+        currentStep = 0;
+
+        if (parsedRule) {
+          document.getElementById('rule-input').value = parsedRule;
+        }
+
+        const slider = document.getElementById('step-slider');
+        slider.max = Math.max(0, history.length - 1);
+        slider.value = 0;
+
+        focusCameraOnCells(history[0]);
+        renderCurrentStep();
+
+      } catch (err) {
+        alert("JSONの読み込みに失敗しました:\n" + err.message);
+      }
+    }
+
+    function focusCameraOnCells(cells) {
+      if (!cells || cells.length === 0) return;
+      let sx = 0, sy = 0, sz = 0;
+      cells.forEach(c => { sx += c[0]; sy += c[1]; sz += c[2]; });
+      const cx = sx / cells.length;
+      const cy = sy / cells.length;
+      const cz = sz / cells.length;
+      controls.target.set(cx, cy, cz);
+      camera.position.set(cx + 20, cy + 16, cz + 24);
+      controls.update();
+    }
+
+    // ====================================================
+    // 7. UIイベントリスナー
+    // ====================================================
+
+    // カラーピッカー・外観イベント
+    document.getElementById('color-mode').addEventListener('change', (e) => {
+      document.getElementById('row-color-b').style.display = e.target.value === 'gradient' ? 'flex' : 'none';
+      renderCurrentStep();
+    });
+    document.getElementById('color-a').addEventListener('input', renderCurrentStep);
+    document.getElementById('color-b').addEventListener('input', renderCurrentStep);
+    document.getElementById('bg-color').addEventListener('input', (e) => {
+      updateBackgroundColor(e.target.value);
+    });
+
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tName = btn.getAttribute('data-theme');
+        if (THEMES[tName]) applyTheme(THEMES[tName]);
+      });
+    });
+
+    document.getElementById('slider-voxel-size').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      document.getElementById('label-voxel-size').textContent = val.toFixed(2);
+      updateBoxGeometry(val);
+    });
+
+    document.getElementById('slider-opacity').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      document.getElementById('label-opacity').textContent = val.toFixed(2);
+      boxMaterial.opacity = val;
+      boxMaterial.transparent = val < 1.0;
+      boxMaterial.needsUpdate = true;
+    });
+
+    document.getElementById('check-wireframe').addEventListener('change', (e) => {
+      boxMaterial.wireframe = e.target.checked;
+      boxMaterial.needsUpdate = true;
+    });
+
+    // ファイルドラッグ＆ドロップ
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const dropOverlay = document.getElementById('drop-overlay');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      readFile(file);
+    });
+
+    function readFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          loadFromJsonData(data);
+        } catch (err) {
+          alert("JSON構文エラー:\n" + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropOverlay.classList.add('active');
+    });
+    window.addEventListener('dragleave', (e) => {
+      if (e.clientX <= 0 || e.clientY <= 0) dropOverlay.classList.remove('active');
+    });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropOverlay.classList.remove('active');
+      if (e.dataTransfer.files.length > 0) {
+        readFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    document.getElementById('btn-parse-paste').addEventListener('click', () => {
+      const text = document.getElementById('paste-box').value.trim();
+      if (!text) return alert("JSONテキストを入力してください");
+      try {
+        const data = JSON.parse(text);
+        loadFromJsonData(data);
+      } catch (err) {
+        alert("JSONパースエラー:\n" + err.message);
+      }
+    });
+
+    document.getElementById('preset-select').addEventListener('change', (e) => {
+      const p = PRESETS[e.target.value];
+      if (p) {
+        loadFromJsonData({ ruleStr: p.rule, coords: p.c0 });
+      }
+    });
+
+    const slider = document.getElementById('step-slider');
+    slider.addEventListener('input', (e) => {
+      currentStep = parseInt(e.target.value, 10);
+      renderCurrentStep();
+    });
+
+    document.getElementById('btn-step').addEventListener('click', () => {
+      if (currentStep + 1 < history.length) {
+        currentStep++;
+      } else {
+        const currentCells = history[currentStep] || [];
+        const nextCells = simulateNext(currentCells, document.getElementById('rule-input').value);
+        history.push(nextCells);
+        slider.max = history.length - 1;
+        currentStep = history.length - 1;
+      }
+      renderCurrentStep();
+    });
+
+    document.getElementById('btn-generate').addEventListener('click', () => {
+      const rule = document.getElementById('rule-input').value;
+      for (let i = 0; i < 16; i++) {
+        const lastCells = history[history.length - 1] || [];
+        const nextCells = simulateNext(lastCells, rule);
+        history.push(nextCells);
+      }
+      slider.max = history.length - 1;
+      currentStep = history.length - 1;
+      renderCurrentStep();
+    });
+
+    const btnPlay = document.getElementById('btn-play');
+    btnPlay.addEventListener('click', () => {
+      isPlaying = !isPlaying;
+      if (isPlaying) {
+        btnPlay.textContent = "⏸ 一時停止";
+        btnPlay.classList.remove('success');
+        btnPlay.style.background = "#d97706";
+        playInterval = setInterval(() => {
+          if (currentStep + 1 < history.length) {
+            currentStep++;
+          } else {
+            const currentCells = history[currentStep] || [];
+            const nextCells = simulateNext(currentCells, document.getElementById('rule-input').value);
+            history.push(nextCells);
+            slider.max = history.length - 1;
+            currentStep = history.length - 1;
+          }
+          renderCurrentStep();
+        }, 250);
+      } else {
+        btnPlay.textContent = "▶ 再生";
+        btnPlay.classList.add('success');
+        btnPlay.style.background = "";
+        clearInterval(playInterval);
+      }
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      if (isPlaying) btnPlay.click();
+      currentStep = 0;
+      renderCurrentStep();
+    });
+
+    document.getElementById('btn-cam-reset').addEventListener('click', () => {
+      focusCameraOnCells(history[currentStep] || []);
+    });
+
+    document.getElementById('btn-export-json').addEventListener('click', () => {
+      const exportData = {
+        ruleStr: document.getElementById('rule-input').value,
+        totalSteps: history.length,
+        history: history
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ca_simulation_${document.getElementById('rule-input').value.replace('/', '_')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // 初期ロード
+    loadFromJsonData({
+      ruleStr: PRESETS.glider7_b4s45.rule,
+      coords: PRESETS.glider7_b4s45.c0
+    });
+  </script>
+</body>
+</html>

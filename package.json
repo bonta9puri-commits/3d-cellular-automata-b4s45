@@ -1,0 +1,22 @@
+{
+  "name": "3d-cellular-automata-b4s45",
+  "version": "1.0.0",
+  "description": "Universal Computation and Pure Physics in 3D Cellular Automata (B4/S45 Moore 26-Neighborhood)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test_suite.js"
+  },
+  "keywords": [
+    "cellular-automata",
+    "3d-cellular-automata",
+    "conways-game-of-life",
+    "turing-complete",
+    "half-adder",
+    "logic-gates",
+    "glider",
+    "billiard-ball-model"
+  ],
+  "author": "Antigravity Research",
+  "license": "MIT"
+}

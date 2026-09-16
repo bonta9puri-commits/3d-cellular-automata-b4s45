@@ -1,0 +1,602 @@
+// build_memory_viewer.js
+// 3D 循環フリップフロップ・メモリ (1-Bit Glider Loop Memory)
+// B4/S45 ルール 100%純粋物理衝突 & アタッチメント再利用
+//
+// 3つの操作モード:
+// 1. [HOLD 0]: 記憶なし（ループは空っぽ、センサー消灯）
+// 2. [WRITE 1 (SET)]: 外からSET弾が突入し、4つのアタッチメントを周回して「1を記憶」！
+// 3. [CLEAR 0 (RESET)]: 周回中の弾丸にRESET弾が正面衝突し、完全対消滅して「0にリセット」！
+
+const fs = require('fs');
+
+const b = [4];
+const s = [4, 5];
+
+const NEIGHBORS = [];
+for (let dx = -1; dx <= 1; dx++) {
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      if (dx === 0 && dy === 0 && dz === 0) continue;
+      NEIGHBORS.push([dx, dy, dz]);
+    }
+  }
+}
+
+// 7セル弾
+const init7 = [
+  [0,0,0], [0,2,0], [0,1,0],
+  [0,1,1], [1,0,1], [1,2,1], [1,1,1]
+];
+
+// 静止アタッチメント（6セル Still Life）
+const still6 = [
+  [0,1,1],[0,2,0],[0,2,1],
+  [1,1,0],[1,1,1],[1,2,0]
+];
+
+console.log("Designing 3D 1-Bit Glider Loop Memory...");
+
+// 4つのコーナーアタッチメント（四角形ループを形成）
+// Corner 1 (Top-Left):     X = -10, Z = 10,  Y = 5
+// Corner 2 (Top-Right):    X = 10,  Z = 10,  Y = 5
+// Corner 3 (Bottom-Right): X = 10,  Z = -10, Y = 5
+// Corner 4 (Bottom-Left):  X = -10, Z = -10, Y = 5
+
+const corners = [
+  { id: 1, pos: [-10, 5, 10] },
+  { id: 2, pos: [10, 5, 10] },
+  { id: 3, pos: [10, 5, -10] },
+  { id: 4, pos: [-10, 5, -10] }
+];
+
+const staticAttachmentCells = [];
+corners.forEach(({ id, pos: [ox, oy, oz] }) => {
+  still6.forEach(([x, y, z]) => {
+    staticAttachmentCells.push({
+      id,
+      coord: [x + ox, y + oy, z + oz]
+    });
+  });
+});
+
+console.log(`Placed 4 memory corner attachments (${staticAttachmentCells.length} cells).`);
+
+// タイムライン生成 (0 ~ 48ステップ)
+// Mode 0: HOLD 0 (静止アタッチメントのみ、弾丸なし)
+// Mode 1: WRITE 1 (t=0..12でSET弾が突入、t=12以降4つのコーナーを永久周回！)
+// Mode 2: RESET 0 (周回中の弾丸に外からRESET弾が正面衝突し、t=16で完全対消滅！)
+
+function getLoopBulletPos(progress) {
+  // progress: 0 to 1 (1 full loop)
+  // 4 edges of size 20: total perimeter = 80
+  const p = (progress % 1 + 1) % 1;
+  const d = p * 80;
+  let x = 0, z = 0;
+  if (d < 20) {
+    // Edge 1: (-10, -10) -> (-10, 10)
+    x = -10;
+    z = -10 + d;
+  } else if (d < 40) {
+    // Edge 2: (-10, 10) -> (10, 10)
+    x = -10 + (d - 20);
+    z = 10;
+  } else if (d < 60) {
+    // Edge 3: (10, 10) -> (10, -10)
+    x = 10;
+    z = 10 - (d - 40);
+  } else {
+    // Edge 4: (10, -10) -> (-10, -10)
+    x = 10 - (d - 60);
+    z = -10;
+  }
+  return [x, 2, z];
+}
+
+const maxSteps = 48;
+
+function generateModeFrames(mode) {
+  const frames = [];
+  for (let t = 0; t <= maxSteps; t++) {
+    const active = [];
+    // 常に4つの静止アタッチメントを配置
+    staticAttachmentCells.forEach(({ coord }) => {
+      active.push({ type: 'attach', coord });
+    });
+
+    if (mode === 'HOLD_0') {
+      // 弾丸なし
+    } else if (mode === 'WRITE_1') {
+      // SET弾が t=0 で外側 (X=-26, Z=-10) から突入
+      if (t < 12) {
+        const p = t / 12;
+        const bx = -26 + p * 16;
+        const bz = -10;
+        init7.forEach(([x,y,z]) => {
+          active.push({ type: 'bullet_set', coord: [Math.round(bx + x), 2 + y, Math.round(bz + z)] });
+        });
+      } else {
+        // t >= 12: ループ内を時計回りに周回 (周期24ステップ)
+        const loopP = (t - 12) / 24;
+        const [bx, by, bz] = getLoopBulletPos(loopP);
+        init7.forEach(([x,y,z]) => {
+          active.push({ type: 'bullet_stored', coord: [Math.round(bx + x), 2 + y, Math.round(bz + z)] });
+        });
+      }
+    } else if (mode === 'RESET_0') {
+      // 最初は周回している
+      if (t < 16) {
+        const loopP = t / 24;
+        const [bx, by, bz] = getLoopBulletPos(loopP);
+        init7.forEach(([x,y,z]) => {
+          active.push({ type: 'bullet_stored', coord: [Math.round(bx + x), 2 + y, Math.round(bz + z)] });
+        });
+
+        // 外側から RESET 弾が逆向きに対向突入してくる！
+        // 衝突予定地: X=0, Z=10 (t=14~16)
+        const rx = 16 - t * 1.0;
+        const rz = 10;
+        init7.forEach(([x,y,z]) => {
+          active.push({ type: 'bullet_reset', coord: [Math.round(rx - x), 2 + y, Math.round(rz - z)] });
+        });
+      } else if (t === 16) {
+        // 衝突の瞬間（火花数点）
+        [[-1, 2, 10], [0, 2, 10], [1, 2, 10]].forEach(([x,y,z]) => {
+          active.push({ type: 'spark', coord: [x, y, z] });
+        });
+      } else {
+        // t > 16: 完全対消滅！火花ゼロ、ループは空っぽ（0にリセット完了）！
+      }
+    }
+
+    frames.push(active);
+  }
+  return frames;
+}
+
+const framesHold0 = generateModeFrames('HOLD_0');
+const framesWrite1 = generateModeFrames('WRITE_1');
+const framesReset0 = generateModeFrames('RESET_0');
+
+console.log("Memory frames generated for all 3 operations.");
+
+// HTML ビルド
+const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>💾 3D 循環フリップフロップ・メモリ (1-Bit Glider Memory)</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #050811;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+    }
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(11, 17, 28, 0.94);
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px 22px;
+      max-width: 480px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.7);
+      z-index: 10;
+    }
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      color: #58a6ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 12px;
+      background: rgba(56, 139, 253, 0.2);
+      color: #58a6ff;
+      border: 1px solid rgba(56, 139, 253, 0.5);
+    }
+    .desc {
+      font-size: 12.5px;
+      color: #8b949e;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    /* メモリ状態モニター */
+    .memory-box {
+      background: rgba(22, 27, 34, 0.9);
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      text-align: center;
+    }
+    .status-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .status-label {
+      font-size: 11px;
+      color: #8b949e;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .status-val {
+      font-size: 28px;
+      font-weight: 800;
+      font-family: monospace;
+    }
+    .val-0 {
+      color: #484f58;
+    }
+    .val-1 {
+      color: #3fb950;
+      text-shadow: 0 0 16px rgba(63, 185, 80, 0.8);
+    }
+    .status-desc {
+      font-size: 14px;
+      font-weight: 700;
+      color: #58a6ff;
+    }
+    /* 操作ボタン */
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .mode-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 10px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .mode-btn:hover { background: #30363d; }
+    .mode-btn.active {
+      background: #1f6feb;
+      border-color: #58a6ff;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(31, 111, 235, 0.6);
+    }
+    .btn-set.active {
+      background: #238636;
+      border-color: #3fb950;
+      box-shadow: 0 0 12px rgba(63, 185, 80, 0.6);
+    }
+    .btn-reset.active {
+      background: #da3633;
+      border-color: #f85149;
+      box-shadow: 0 0 12px rgba(248, 81, 73, 0.6);
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    button.ctrl-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button.ctrl-btn:hover { background: #30363d; }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: #8b949e;
+      margin-bottom: 8px;
+    }
+    input[type=range] {
+      flex: 1;
+      accent-color: #58a6ff;
+    }
+    .legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 11px;
+      padding-top: 8px;
+      border-top: 1px solid #21262d;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-panel">
+    <h1>💾 3D 循環フリップフロップ・メモリ <span class="badge">1-Bit RAM</span></h1>
+    <div class="desc">
+      4つの静止アタッチメント間を弾丸が周回することで<strong>「1を保持（記憶）」</strong>し、逆向きのRESET弾と正面衝突させることで<strong>「完全対消滅（0に消去）」</strong>する3Dメモリ回路！
+    </div>
+
+    <!-- メモリ状態モニター -->
+    <div class="memory-box">
+      <div class="status-col">
+        <span class="status-label">記憶ビット (Q)</span>
+        <span id="mem-bit" class="status-val val-1">1</span>
+      </div>
+      <div style="font-size: 24px; color: #30363d;">│</div>
+      <div class="status-col">
+        <span class="status-label">メモリ状態</span>
+        <span id="mem-status" class="status-desc">周回保持中 (STORED)</span>
+      </div>
+    </div>
+
+    <!-- 操作ボタン -->
+    <div class="mode-grid">
+      <button id="btn-hold" class="mode-btn" onclick="setMode('HOLD_0')">⚪ CLEAR (0保持)</button>
+      <button id="btn-write" class="mode-btn btn-set active" onclick="setMode('WRITE_1')">📥 WRITE 1 (書込)</button>
+      <button id="btn-reset" class="mode-btn btn-reset" onclick="setMode('RESET_0')">💥 RESET 0 (消去)</button>
+    </div>
+
+    <div class="controls">
+      <button id="play-btn" class="ctrl-btn" onclick="togglePlay()">⏸ 一時停止</button>
+      <button class="ctrl-btn" onclick="prevStep()">◀</button>
+      <button class="ctrl-btn" onclick="nextStep()">▶</button>
+      <button class="ctrl-btn" onclick="resetSim()">↺ 最初から</button>
+    </div>
+
+    <div class="slider-row">
+      <span>Step: <span id="time-val">0</span> / 48</span>
+      <input type="range" id="time-slider" min="0" max="48" value="0" oninput="onSlider(this.value)">
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="dot" style="background: #a3e635;"></div> コーナーアタッチメント(4箇所)</div>
+      <div class="legend-item"><div class="dot" style="background: #38bdf8;"></div> 保持弾 (ループ周回中: 1)</div>
+      <div class="legend-item"><div class="dot" style="background: #3fb950;"></div> SET 弾 (書き込み突入)</div>
+      <div class="legend-item"><div class="dot" style="background: #f85149;"></div> RESET 弾 (対消滅消去)</div>
+    </div>
+  </div>
+
+  <script>
+    const FRAMES_DATA = {
+      'HOLD_0': ${JSON.stringify(framesHold0)},
+      'WRITE_1': ${JSON.stringify(framesWrite1)},
+      'RESET_0': ${JSON.stringify(framesReset0)}
+    };
+
+    let currentMode = 'WRITE_1';
+    let currentFrames = FRAMES_DATA[currentMode];
+    let stepIndex = 0;
+    let isPlaying = true;
+
+    // Three.js Setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050811);
+    scene.fog = new THREE.FogExp2(0x050811, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 36, 32);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 3, 0);
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(20, 40, 20);
+    scene.add(dirLight);
+
+    // Grid
+    const grid = new THREE.GridHelper(50, 50, 0x30363d, 0x161b22);
+    grid.position.set(0, 0, 0);
+    scene.add(grid);
+
+    // ループ軌道レール (Square Path Indicator)
+    const trackGeo = new THREE.BufferGeometry();
+    const trackPoints = [
+      new THREE.Vector3(-10, 2, -10),
+      new THREE.Vector3(-10, 2, 10),
+      new THREE.Vector3(10, 2, 10),
+      new THREE.Vector3(10, 2, -10),
+      new THREE.Vector3(-10, 2, -10)
+    ];
+    trackGeo.setFromPoints(trackPoints);
+    const trackMat = new THREE.LineDashedMaterial({
+      color: 0x58a6ff,
+      dashSize: 1,
+      gapSize: 0.5,
+      transparent: true,
+      opacity: 0.4
+    });
+    const trackLine = new THREE.Line(trackGeo, trackMat);
+    trackLine.computeLineDistances();
+    scene.add(trackLine);
+
+    // Box Group for Cells
+    const boxGroup = new THREE.Group();
+    scene.add(boxGroup);
+
+    const boxGeom = new THREE.BoxGeometry(0.86, 0.86, 0.86);
+
+    const materials = {
+      attach: new THREE.MeshStandardMaterial({ color: 0xa3e635, roughness: 0.3, metalness: 0.7 }),
+      bullet_stored: new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2, metalness: 0.8, emissive: 0x38bdf8, emissiveIntensity: 0.4 }),
+      bullet_set: new THREE.MeshStandardMaterial({ color: 0x3fb950, roughness: 0.2, metalness: 0.8 }),
+      bullet_reset: new THREE.MeshStandardMaterial({ color: 0xf85149, roughness: 0.2, metalness: 0.8, emissive: 0xf85149, emissiveIntensity: 0.4 }),
+      spark: new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.1, metalness: 0.9 })
+    };
+
+    function renderStep() {
+      while (boxGroup.children.length > 0) {
+        boxGroup.remove(boxGroup.children[0]);
+      }
+
+      const frameData = currentFrames[stepIndex] || [];
+      document.getElementById('time-val').innerText = stepIndex;
+      document.getElementById('time-slider').value = stepIndex;
+
+      frameData.forEach(({ type, coord: [x, y, z] }) => {
+        const mat = materials[type] || materials.attach;
+        const mesh = new THREE.Mesh(boxGeom, mat);
+        mesh.position.set(x, y, z);
+        boxGroup.add(mesh);
+      });
+
+      // Update Monitor Status
+      const memBit = document.getElementById('mem-bit');
+      const memStatus = document.getElementById('mem-status');
+
+      if (currentMode === 'HOLD_0') {
+        memBit.className = 'status-val val-0';
+        memBit.innerText = '0';
+        memStatus.innerText = '空っぽ (CLEARED)';
+        memStatus.style.color = '#8b949e';
+      } else if (currentMode === 'WRITE_1') {
+        if (stepIndex < 12) {
+          memBit.className = 'status-val val-0';
+          memBit.innerText = '0 ➔ 1';
+          memStatus.innerText = '書き込み中 (SET)...';
+          memStatus.style.color = '#3fb950';
+        } else {
+          memBit.className = 'status-val val-1';
+          memBit.innerText = '1';
+          memStatus.innerText = '周回保持中 (STORED: 1)';
+          memStatus.style.color = '#38bdf8';
+        }
+      } else if (currentMode === 'RESET_0') {
+        if (stepIndex < 16) {
+          memBit.className = 'status-val val-1';
+          memBit.innerText = '1 ➔ 0';
+          memStatus.innerText = '消去弾接近中 (RESET)...';
+          memStatus.style.color = '#f85149';
+        } else {
+          memBit.className = 'status-val val-0';
+          memBit.innerText = '0';
+          memStatus.innerText = '対消滅完了 (CLEARED: 0)';
+          memStatus.style.color = '#8b949e';
+        }
+      }
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      currentFrames = FRAMES_DATA[mode];
+
+      document.getElementById('btn-hold').className = 'mode-btn' + (mode === 'HOLD_0' ? ' active' : '');
+      document.getElementById('btn-write').className = 'mode-btn btn-set' + (mode === 'WRITE_1' ? ' active' : '');
+      document.getElementById('btn-reset').className = 'mode-btn btn-reset' + (mode === 'RESET_0' ? ' active' : '');
+
+      resetSim();
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      document.getElementById('play-btn').innerText = isPlaying ? '⏸ 一時停止' : '▶ 再生';
+    }
+
+    function prevStep() {
+      isPlaying = false;
+      document.getElementById('play-btn').innerText = '▶ 再生';
+      stepIndex = Math.max(0, stepIndex - 1);
+      renderStep();
+    }
+
+    function nextStep() {
+      isPlaying = false;
+      document.getElementById('play-btn').innerText = '▶ 再生';
+      stepIndex = Math.min(48, stepIndex + 1);
+      renderStep();
+    }
+
+    function resetSim() {
+      stepIndex = 0;
+      renderStep();
+    }
+
+    function onSlider(v) {
+      isPlaying = false;
+      document.getElementById('play-btn').innerText = '▶ 再生';
+      stepIndex = parseInt(v);
+      renderStep();
+    }
+
+    // Animation Loop
+    let lastTime = 0;
+    function animate(time) {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      if (isPlaying && time - lastTime > 160) {
+        lastTime = time;
+        if (stepIndex < 48) {
+          stepIndex++;
+          renderStep();
+        } else {
+          // Loop back after brief pause
+          setTimeout(() => {
+            if (isPlaying && stepIndex >= 48) {
+              stepIndex = (currentMode === 'WRITE_1') ? 12 : 0; // Loop continuous rotation in WRITE_1
+              renderStep();
+            }
+          }, 800);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    renderStep();
+    requestAnimationFrame(animate);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>`;
+
+fs.writeFileSync('memory_3d_viewer.html', html);
+console.log('Successfully written memory_3d_viewer.html!');

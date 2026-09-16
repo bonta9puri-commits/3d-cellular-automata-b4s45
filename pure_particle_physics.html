@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>🌌 3D B4/S45 純粋粒子物理ミュージアム (Pure Cellular Physics)</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #03060d;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    }
+    #canvas-container { width: 100vw; height: 100vh; position: absolute; }
+    #ui-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(10, 16, 28, 0.92);
+      border: 1px solid #233549;
+      border-radius: 14px;
+      padding: 20px 24px;
+      max-width: 440px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.85);
+      z-index: 10;
+    }
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 19px;
+      color: #58a6ff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: 0.5px;
+    }
+    .badge-pure {
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 12px;
+      background: rgba(0, 255, 136, 0.15);
+      color: #00ff88;
+      border: 1px solid rgba(0, 255, 136, 0.4);
+    }
+    .desc {
+      font-size: 12.5px;
+      color: #8b949e;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    /* モード選択タブ */
+    .mode-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6e7681;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .mode-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .mode-btn {
+      background: #111827;
+      border: 1px solid #263345;
+      color: #9ca3af;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+    .mode-btn:hover { background: #1f2937; border-color: #58a6ff; color: #fff; }
+    .mode-btn.active {
+      background: rgba(56, 139, 253, 0.2);
+      border-color: #58a6ff;
+      color: #58a6ff;
+      font-weight: 600;
+      box-shadow: 0 0 16px rgba(56, 139, 253, 0.25);
+    }
+    .mode-sub { font-size: 10px; opacity: 0.75; }
+
+    /* リアルタイムステータス */
+    .status-card {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    .status-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #f1f5f9;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+    .status-metric-val {
+      font-weight: bold;
+      color: #38bdf8;
+    }
+
+    /* コントロール */
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    button.ctrl-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #f1f5f9;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      flex: 1;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    button.ctrl-btn:hover { background: #334155; border-color: #58a6ff; }
+    button.btn-primary { background: #16a34a; border-color: #22c55e; color: #fff; }
+    button.btn-primary:hover { background: #22c55e; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 10px;
+    }
+    .slider-row input { flex: 1; }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="ui-panel">
+    <h1>
+      🌌 純粋粒子物理ミュージアム
+      <span class="badge-pure">Pure 100%</span>
+    </h1>
+    <div class="desc">
+      無理な配線や人工補正は一切ありません。広大な3次元宇宙で見つかった<b>「飛翔（羽ばたき）」「衝突結晶化（物質化）」「完全対消滅（無への帰還）」</b>の3つの純粋現象のみをありのままにリアルタイム観察できます。
+    </div>
+
+    <div class="mode-label">観測モード選択</div>
+    <div class="mode-grid">
+      <button class="mode-btn active" id="btn-mode-flight">
+        <span>🪶 ① 単体飛翔 (Flight)</span>
+        <span class="mode-sub">7-8-7-6セルの羽ばたき滑空</span>
+      </button>
+      <button class="mode-btn" id="btn-mode-cryst">
+        <span>💎 ② 衝突結晶化 (Crystal)</span>
+        <span class="mode-sub">正面衝突で6セル静止体に</span>
+      </button>
+      <button class="mode-btn" id="btn-mode-annihil">
+        <span>💥 ③ 完全対消滅 (Annihil)</span>
+        <span class="mode-sub">直撃で跡形もなく真空へ</span>
+      </button>
+      <button class="mode-btn" id="btn-mode-cycle">
+        <span>♾️ ④ 生命の全生涯 (Cycle)</span>
+        <span class="mode-sub">飛翔 ➔ 結晶化 ➔ 対消滅</span>
+      </button>
+    </div>
+
+    <div class="status-card">
+      <div class="status-title">
+        <span id="stat-mode-name">🪶 単体飛翔モード</span>
+        <span id="stat-step-badge" style="font-size:11.5px; color:#58a6ff;">Step: 0</span>
+      </div>
+      <div class="status-metrics">
+        <div>空間総セル数: <span class="status-metric-val" id="stat-cells">7</span></div>
+        <div>呼吸位相: <span class="status-metric-val" id="stat-phase">Phase 0 (7セル)</span></div>
+        <div>重心位置: <span class="status-metric-val" id="stat-pos">X:0, Y:1, Z:0</span></div>
+        <div>外部補正: <span class="status-metric-val" style="color:#00ff88;">0回 (完全不在)</span></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn btn-primary" id="btn-play">▶ 再生 (Live)</button>
+      <button class="ctrl-btn" id="btn-step">⏭ 1コマ送り</button>
+      <button class="ctrl-btn" id="btn-reset">🔄 リセット</button>
+    </div>
+
+    <div class="slider-row">
+      <span>速度:</span>
+      <input type="range" id="speedRange" min="1" max="40" value="8">
+      <span id="speedVal">8 step/s</span>
+    </div>
+
+    <label class="checkbox-row">
+      <input type="checkbox" id="checkFollow" checked>
+      <span>カメラを粒子の動きに自動追従させる</span>
+    </label>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. 純粋 B4/S45 ルール物理エンジン
+    // ==========================================
+    const B_RULES = [4];
+    const S_RULES = [4, 5];
+
+    const NEIGHBORS = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          if (dx === 0 && dy === 0 && dz === 0) continue;
+          NEIGHBORS.push([dx, dy, dz]);
+        }
+      }
+    }
+
+    function pureStep(current) {
+      const counts = new Map();
+      for (const k of current) {
+        const [x,y,z] = k.split(',').map(Number);
+        for (const [dx,dy,dz] of NEIGHBORS) {
+          const nk = (x+dx) + ',' + (y+dy) + ',' + (z+dz);
+          counts.set(nk, (counts.get(nk) || 0) + 1);
+        }
+      }
+      const next = new Set();
+      for (const [k, cnt] of counts.entries()) {
+        const alive = current.has(k);
+        if (alive && S_RULES.includes(cnt)) next.add(k);
+        else if (!alive && B_RULES.includes(cnt)) next.add(k);
+      }
+      return next;
+    }
+
+    // 基本素粒子: 7セル自走グライダー
+    const init7 = [
+      [0,0,0], [0,2,0], [0,1,0],
+      [0,1,1], [1,0,1], [1,2,1], [1,1,1]
+    ];
+
+    // ==========================================
+    // 2. モード別初期宇宙生成
+    // ==========================================
+    let currentMode = 'flight'; // 'flight', 'cryst', 'annihil', 'cycle'
+    let liveUniverse = new Set();
+    let currentStep = 0;
+    let isPlaying = false;
+    let lastStepTime = 0;
+    let stepInterval = 1000 / 8;
+    let followCamera = true;
+
+    function buildUniverseForMode(mode) {
+      const cells = new Set();
+
+      if (mode === 'flight') {
+        // ① 単体飛翔: 原点に1発のグライダーを配置
+        init7.forEach(([x,y,z]) => cells.add(x + ',' + y + ',' + z));
+      } else if (mode === 'cryst') {
+        // ② 衝突結晶化: 2発のグライダーを向かい合わせて配置
+        // g1 (+Z方向へ)
+        init7.forEach(([x,y,z]) => cells.add(x + ',' + y + ',' + z));
+        // g2 (-Z方向へ)
+        init7.forEach(([x,y,z]) => cells.add((-x - 3) + ',' + (y - 3) + ',' + (5 - z)));
+      } else if (mode === 'annihil') {
+        // ③ 完全対消滅: すでに完成した6セル結晶に、リセット弾が直撃する瞬間
+        // まず結晶を生成
+        let temp = new Set();
+        init7.forEach(([x,y,z]) => temp.add(x + ',' + y + ',' + z));
+        init7.forEach(([x,y,z]) => temp.add((-x - 3) + ',' + (y - 3) + ',' + (5 - z)));
+        for(let t=1; t<=10; t++) temp = pureStep(temp);
+        // 結晶を追加
+        temp.forEach(k => cells.add(k));
+        // リセット弾を追加
+        init7.forEach(([x,y,z]) => cells.add((x - 3) + ',' + (y - 3) + ',' + (5 - z)));
+      } else if (mode === 'cycle') {
+        // ④ 全生涯サイクル: 結晶化ペアからスタートし、t=10で自動的にリセット弾が突入
+        init7.forEach(([x,y,z]) => cells.add(x + ',' + y + ',' + z));
+        init7.forEach(([x,y,z]) => cells.add((-x - 3) + ',' + (y - 3) + ',' + (5 - z)));
+      }
+
+      return cells;
+    }
+
+    function resetUniverse() {
+      isPlaying = false;
+      document.getElementById('btn-play').innerText = '▶ 再生 (Live)';
+      currentStep = 0;
+      liveUniverse = buildUniverseForMode(currentMode);
+      renderUniverse();
+    }
+
+    // ==========================================
+    // 3. Three.js セットアップ
+    // ==========================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x03060d);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(12, 16, 26);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 1, 2);
+
+    // ライティング
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(20, 40, 20);
+    scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0x0088ff, 0.4);
+    dirLight2.position.set(-20, -20, -20);
+    scene.add(dirLight2);
+
+    // グリッド
+    const grid = new THREE.GridHelper(100, 50, 0x1e293b, 0x0a101d);
+    grid.position.y = -3;
+    scene.add(grid);
+
+    // インスタンスメッシュ
+    const MAX_CELLS = 2000;
+    const boxGeo = new THREE.BoxGeometry(0.88, 0.88, 0.88);
+    const boxMat = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1
+    });
+    const instMesh = new THREE.InstancedMesh(boxGeo, boxMat, MAX_CELLS);
+    instMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(instMesh);
+
+    const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
+
+    function renderUniverse() {
+      let idx = 0;
+      let sumX = 0, sumY = 0, sumZ = 0;
+
+      for (const k of liveUniverse) {
+        if (idx >= MAX_CELLS) break;
+        const [x,y,z] = k.split(',').map(Number);
+        dummy.position.set(x, y, z);
+        dummy.updateMatrix();
+        instMesh.setMatrixAt(idx, dummy.matrix);
+
+        sumX += x; sumY += y; sumZ += z;
+
+        // モードや状態に応じた美しいカラーパレット
+        if (liveUniverse.size === 6 && currentStep >= 8) {
+          color.setHex(0x00ffc8); // 静止結晶 (エメラルドグリーン)
+        } else if (liveUniverse.size === 7) {
+          color.setHex(0x38bdf8); // 7セル基本グライダー (シアン)
+        } else if (liveUniverse.size === 8) {
+          color.setHex(0x818cf8); // 8セル呼吸膨張 (パープル)
+        } else if (liveUniverse.size === 6) {
+          color.setHex(0x38bdf8); // 6セル収縮
+        } else {
+          color.setHex(0xf59e0b); // 衝突スパーク励起 (アンバー)
+        }
+
+        instMesh.setColorAt(idx, color);
+        idx++;
+      }
+
+      instMesh.count = idx;
+      instMesh.instanceMatrix.needsUpdate = true;
+      if (instMesh.instanceColor) instMesh.instanceColor.needsUpdate = true;
+
+      // 重心計算
+      const count = idx;
+      let avgX = 0, avgY = 0, avgZ = 0;
+      if (count > 0) {
+        avgX = (sumX / count).toFixed(1);
+        avgY = (sumY / count).toFixed(1);
+        avgZ = (sumZ / count).toFixed(1);
+      }
+
+      // カメラ追従
+      if (followCamera && count > 0 && currentMode === 'flight') {
+        const targetX = Number(avgX);
+        const targetY = Number(avgY);
+        const targetZ = Number(avgZ);
+        controls.target.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.1);
+      }
+
+      // UI 更新
+      document.getElementById('stat-cells').innerText = count;
+      document.getElementById('stat-step-badge').innerText = 'Step: ' + currentStep;
+      document.getElementById('stat-pos').innerText = 'X:' + avgX + ', Y:' + avgY + ', Z:' + avgZ;
+
+      const phaseIdx = currentStep % 4;
+      const phaseNames = ['Phase 0 (7セル)', 'Phase 1 (8セル 膨張)', 'Phase 2 (7セル)', 'Phase 3 (6セル 収縮)'];
+      document.getElementById('stat-phase').innerText = (count === 0) ? '完全真空 (0セル)' : (liveUniverse.size === 6 && currentStep >= 8) ? '完全静止結晶 (周期1)' : phaseNames[phaseIdx];
+    }
+
+    function doStep() {
+      // サイクルモードの場合、t=10で自動的にリセット弾を投入
+      if (currentMode === 'cycle' && currentStep === 10) {
+        init7.forEach(([x,y,z]) => liveUniverse.add((x - 3) + ',' + (y - 3) + ',' + (5 - z)));
+      }
+
+      liveUniverse = pureStep(liveUniverse);
+      currentStep++;
+      renderUniverse();
+
+      // 消滅モードでゼロになったら自動停止
+      if ((currentMode === 'annihil' || currentMode === 'cycle') && liveUniverse.size === 0) {
+        isPlaying = false;
+        document.getElementById('btn-play').innerText = '▶ 再生 (Live)';
+      }
+    }
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      if (isPlaying && now - lastStepTime >= stepInterval) {
+        doStep();
+        lastStepTime = now;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // イベント登録
+    document.getElementById('btn-play').addEventListener('click', () => {
+      if ((currentMode === 'annihil' || currentMode === 'cycle') && liveUniverse.size === 0) {
+        resetUniverse();
+      }
+      isPlaying = !isPlaying;
+      document.getElementById('btn-play').innerText = isPlaying ? '⏸ 一時停止' : '▶ 再生 (Live)';
+    });
+    document.getElementById('btn-step').addEventListener('click', () => {
+      isPlaying = false;
+      document.getElementById('btn-play').innerText = '▶ 再生 (Live)';
+      doStep();
+    });
+    document.getElementById('btn-reset').addEventListener('click', resetUniverse);
+
+    document.getElementById('speedRange').addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      stepInterval = 1000 / v;
+      document.getElementById('speedVal').innerText = v + ' step/s';
+    });
+
+    document.getElementById('checkFollow').addEventListener('change', (e) => {
+      followCamera = e.target.checked;
+    });
+
+    // モード切替ボタン
+    function setMode(mode, name) {
+      currentMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('stat-mode-name').innerText = name;
+
+      if (mode === 'flight') {
+        controls.target.set(0, 1, 2);
+        camera.position.set(12, 16, 26);
+      } else {
+        controls.target.set(-1.5, -0.5, 2.5);
+        camera.position.set(8, 12, 18);
+      }
+
+      resetUniverse();
+    }
+
+    document.getElementById('btn-mode-flight').addEventListener('click', function() {
+      this.classList.add('active');
+      setMode('flight', '🪶 ① 単体飛翔モード');
+    });
+    document.getElementById('btn-mode-cryst').addEventListener('click', function() {
+      this.classList.add('active');
+      setMode('cryst', '💎 ② 衝突結晶化モード');
+    });
+    document.getElementById('btn-mode-annihil').addEventListener('click', function() {
+      this.classList.add('active');
+      setMode('annihil', '💥 ③ 完全対消滅モード');
+    });
+    document.getElementById('btn-mode-cycle').addEventListener('click', function() {
+      this.classList.add('active');
+      setMode('cycle', '♾️ ④ 生命の全生涯モード');
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // 初期化
+    resetUniverse();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

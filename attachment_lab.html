@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>🔬 3D 静止アタッチメント相互作用 物理検証ラボ</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #050811;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container { width: 100vw; height: 100vh; position: absolute; }
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(11, 17, 28, 0.95);
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 18px 24px;
+      max-width: 560px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.8);
+      z-index: 10;
+    }
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 18px;
+      color: #58a6ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mode-selector {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin: 10px 0;
+    }
+    .mode-btn {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      padding: 8px 4px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .mode-btn.active {
+      background: #1f6feb;
+      border-color: #58a6ff;
+      color: #fff;
+      font-weight: bold;
+    }
+    .stat-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .stat-card {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 6px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .stat-val { font-size: 22px; font-weight: bold; font-family: monospace; color: #58a6ff; }
+    .stat-lbl { font-size: 11px; color: #8b949e; text-transform: uppercase; }
+    .desc-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #e6edf3;
+      min-height: 54px;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    button.ctrl-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button.ctrl-btn:hover { background: #30363d; }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: #8b949e;
+    }
+    input[type=range] { flex: 1; accent-color: #58a6ff; }
+    .legend {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #21262d;
+      font-size: 11.5px;
+      color: #8b949e;
+      line-height: 1.6;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-panel">
+    <h1>🔬 3D 静止アタッチメント相互作用 実証ラボ</h1>
+    <div style="font-size: 12px; color: #8b949e;">
+      「ぶつかると本当にどうなるのか？」純粋な B4/S45 ルール通りのリアル挙動を3つのモードで検証できます。
+    </div>
+
+    <!-- モード切り替え -->
+    <div class="mode-selector">
+      <button id="btn-still" class="mode-btn active" onclick="setMode('still')">① 静止体(6セル)の証明</button>
+      <button id="btn-explode" class="mode-btn" onclick="setMode('explode')">② 直撃(信管爆発起爆)</button>
+      <button id="btn-glance" class="mode-btn" onclick="setMode('glance')">③ かすめ通過(触媒励起)</button>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-lbl">経過ステップ</div>
+        <div id="step-lbl" class="stat-val">t = 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">総セル数</div>
+        <div id="count-lbl" class="stat-val">6</div>
+      </div>
+    </div>
+
+    <div id="desc-box" class="desc-box">
+      読み込み中...
+    </div>
+
+    <div class="controls">
+      <button id="play-btn" class="ctrl-btn" onclick="togglePlay()">▶ 再生</button>
+      <button class="ctrl-btn" onclick="prevStep()">◀ 1コマ戻る</button>
+      <button class="ctrl-btn" onclick="nextStep()">1コマ進む ▶</button>
+      <button class="ctrl-btn" onclick="resetSim()">↺ 最初から</button>
+    </div>
+
+    <div class="slider-row">
+      <span>Step: <span id="time-val">0</span> / <span id="max-step-val">10</span></span>
+      <input type="range" id="time-slider" min="0" max="10" value="0" oninput="onSlider(this.value)">
+    </div>
+
+    <div class="legend" id="mode-legend">
+      💡 モード解説を表示中...
+    </div>
+  </div>
+
+  <script>
+    const MODES = {"explode":[{"t":0,"count":13,"cells":[[0,0,0],[0,2,0],[0,1,0],[0,1,1],[1,0,1],[1,2,1],[1,1,1],[0,1,5],[0,2,4],[0,2,5],[1,1,4],[1,1,5],[1,2,4]]},{"t":1,"count":14,"cells":[[-1,1,0],[-1,1,1],[1,0,1],[1,2,1],[0,0,0],[0,2,0],[0,1,2],[1,1,2],[0,2,4],[0,2,5],[1,1,4],[1,1,5],[1,2,4],[0,1,5]]},{"t":2,"count":13,"cells":[[-1,0,1],[-1,1,1],[-1,2,1],[0,0,2],[0,1,2],[0,2,2],[1,1,0],[0,1,5],[0,2,5],[1,1,4],[1,1,5],[1,2,4],[0,2,4]]},{"t":3,"count":13,"cells":[[-1,0,2],[-1,1,1],[0,1,0],[0,1,2],[-1,2,2],[-1,1,3],[1,1,1],[0,2,4],[0,2,5],[1,1,4],[1,1,5],[1,2,4],[0,1,5]]},{"t":4,"count":18,"cells":[[-2,1,2],[-1,0,1],[-1,1,1],[-1,1,3],[0,0,3],[0,1,2],[-1,2,1],[-1,2,3],[1,1,3],[1,2,3],[-1,1,4],[-1,2,4],[0,0,4],[0,1,5],[0,2,5],[1,1,4],[1,1,5],[1,2,4]]},{"t":5,"count":17,"cells":[[-2,0,2],[-2,1,1],[-1,1,1],[-1,2,3],[-2,1,2],[0,1,1],[-2,1,4],[-2,2,4],[-1,2,4],[1,1,2],[1,2,3],[0,3,3],[2,1,3],[2,2,3],[-1,2,5],[1,0,5],[1,1,5]]},{"t":6,"count":23,"cells":[[-3,1,3],[-2,0,1],[-2,1,2],[-1,1,1],[-2,2,2],[-1,2,1],[-2,1,4],[-2,2,4],[-2,3,4],[-1,2,4],[-1,3,3],[0,1,3],[-1,2,3],[1,1,2],[-2,1,5],[-2,2,5],[-1,1,5],[0,1,5],[1,1,3],[1,2,3],[2,1,2],[2,2,2],[2,2,4]]},{"t":7,"count":29,"cells":[[-3,1,2],[-2,0,2],[-2,0,4],[-1,0,2],[-1,1,1],[-3,1,3],[-2,2,1],[0,0,2],[-2,3,2],[-1,3,2],[-1,3,3],[0,3,2],[-3,1,5],[-2,1,5],[-1,0,5],[-2,3,4],[-2,3,5],[-1,3,5],[0,1,3],[0,3,3],[0,3,4],[0,0,4],[1,0,2],[1,0,3],[1,1,2],[2,1,2],[2,2,2],[-1,1,6],[-1,2,6]]},{"t":8,"count":41,"cells":[[-3,0,3],[-3,2,2],[-3,2,3],[-2,0,1],[-2,0,2],[-2,2,1],[-1,0,1],[-1,0,2],[-1,1,1],[-3,0,4],[-3,1,4],[-2,1,5],[-1,0,5],[0,-1,2],[0,2,1],[-2,0,4],[-1,3,1],[-1,3,2],[1,-1,3],[1,0,1],[1,0,2],[-2,3,3],[-2,4,3],[0,3,3],[0,4,2],[-2,4,4],[0,4,4],[1,2,1],[1,3,3],[-3,2,5],[-2,0,6],[-1,2,6],[0,1,4],[0,1,5],[-1,3,5],[-1,4,5],[0,2,5],[2,0,2],[2,0,3],[2,1,1],[2,1,2]]},{"t":9,"count":62,"cells":[[-3,-1,3],[-3,0,4],[-2,-1,4],[-2,0,2],[-2,0,4],[-3,1,1],[-2,2,1],[-2,3,1],[-2,3,3],[-2,-1,1],[-2,1,0],[-1,0,1],[-1,0,2],[-3,0,3],[-2,0,1],[-1,-1,3],[-1,1,3],[-1,2,0],[-1,3,1],[0,-1,2],[0,-1,3],[0,2,0],[0,2,1],[-2,-1,5],[-2,2,6],[-1,0,5],[-1,0,6],[-1,2,6],[0,0,4],[0,1,5],[0,1,6],[1,-1,1],[1,-1,3],[1,0,1],[1,1,0],[-2,4,2],[0,4,2],[-1,2,3],[0,2,3],[0,3,3],[1,0,4],[2,-1,3],[2,0,3],[2,1,1],[2,1,3],[-2,4,4],[-1,5,3],[-1,5,4],[0,4,4],[1,2,3],[1,3,4],[1,4,3],[-1,3,5],[2,2,2],[-2,3,6],[-1,3,6],[0,2,5],[0,2,6],[0,3,6],[1,1,4],[3,0,2],[3,1,2]]},{"t":10,"count":72,"cells":[[-3,0,3],[-3,0,4],[-2,-2,4],[-3,-1,3],[-3,-1,5],[-3,0,5],[-3,1,3],[-2,-1,5],[-1,-2,3],[-1,-2,4],[-3,1,1],[-2,-1,1],[-3,0,0],[-3,1,0],[-3,2,0],[-3,2,1],[-3,2,2],[-2,1,0],[-2,2,1],[-3,3,2],[-2,3,0],[-2,3,1],[-2,4,2],[-1,4,1],[-2,2,4],[-2,3,4],[-2,4,4],[-1,2,3],[-1,-2,2],[-1,0,0],[0,0,0],[0,-2,3],[0,2,0],[0,2,1],[0,3,0],[0,4,2],[1,-2,3],[1,0,1],[1,1,0],[1,2,0],[1,3,1],[-1,0,6],[-2,1,6],[-2,2,7],[-2,3,6],[-2,3,7],[0,-1,5],[0,0,6],[0,1,7],[-2,2,6],[0,3,6],[0,3,7],[1,1,6],[1,0,0],[2,0,0],[2,-1,3],[2,-1,4],[2,1,1],[2,2,1],[-2,5,3],[-1,5,3],[1,4,3],[1,4,4],[3,0,2],[3,1,2],[2,2,2],[3,1,1],[3,2,2],[2,2,4],[0,5,4],[2,3,3],[-1,4,6]]},{"t":11,"count":111,"cells":[[-4,0,2],[-4,0,3],[-4,1,3],[-4,1,4],[-3,1,3],[-2,0,3],[-3,-1,5],[-3,0,5],[-3,-2,4],[-2,-3,3],[-2,-2,5],[-1,-3,4],[-1,-2,3],[-1,-2,4],[-1,-2,5],[-2,-2,2],[-2,-2,4],[-3,0,6],[-2,-1,6],[-3,1,6],[-2,1,6],[-1,-1,6],[-1,0,6],[-1,-1,2],[0,-3,2],[0,-3,4],[0,-2,2],[0,-2,3],[-4,2,0],[-3,0,0],[-1,-1,1],[-1,0,1],[-3,1,-1],[-2,0,-1],[-3,2,-1],[-2,2,-1],[-4,3,1],[-2,3,0],[-3,3,2],[-1,1,-1],[-1,2,-1],[-1,2,2],[-3,4,1],[-3,4,2],[-2,4,2],[-1,4,0],[-1,4,1],[-2,5,2],[-1,5,3],[0,3,0],[0,4,1],[0,4,2],[0,5,2],[-1,3,4],[-2,4,5],[-1,5,4],[0,3,3],[0,-1,0],[0,0,-1],[0,0,0],[1,-1,0],[1,-1,1],[1,0,-1],[1,0,0],[1,0,1],[1,-1,2],[1,-1,3],[0,2,-1],[0,2,1],[1,2,-1],[0,2,0],[1,4,2],[1,4,3],[1,5,3],[2,-1,2],[2,-1,1],[2,0,0],[2,1,-1],[-2,1,7],[-1,0,7],[0,0,5],[0,0,6],[0,0,7],[0,1,6],[-2,2,6],[-2,2,7],[-3,3,6],[-3,3,7],[-2,3,6],[-2,3,7],[-1,2,8],[-1,4,6],[1,0,5],[1,0,6],[0,2,6],[0,2,7],[1,2,6],[1,2,7],[0,4,5],[3,1,0],[2,0,3],[3,0,2],[3,0,3],[3,3,2],[0,4,4],[1,3,4],[2,3,3],[2,3,4],[4,1,1],[4,1,2],[3,3,3]]},{"t":12,"count":120,"cells":[[-5,0,3],[-5,1,3],[-4,0,3],[-4,1,2],[-4,1,3],[-3,-1,2],[-3,1,3],[-4,-1,4],[-4,1,4],[-4,2,2],[-4,2,3],[-3,2,2],[-3,2,3],[-4,1,5],[-2,0,4],[-2,1,2],[-2,2,3],[-1,0,2],[-1,1,2],[-4,-1,5],[-4,0,6],[-3,-2,4],[-3,-3,3],[-3,-3,4],[-3,-2,3],[-2,-2,2],[-1,-4,3],[-1,-2,6],[0,-3,4],[0,-3,5],[-2,0,1],[-1,0,1],[1,-3,3],[1,-1,3],[-4,1,-1],[-4,1,0],[-4,3,0],[-4,3,1],[-3,1,-1],[-3,2,-1],[-3,2,1],[-3,3,-1],[-2,-1,0],[0,-2,0],[0,1,2],[-3,1,-2],[-2,2,-1],[-1,-1,-1],[-1,2,-2],[-4,3,2],[-4,4,1],[-4,4,2],[-3,3,2],[-3,4,2],[-2,4,0],[-1,4,0],[-3,4,3],[0,2,-2],[0,2,-1],[0,2,3],[-3,5,1],[-3,5,2],[-2,5,2],[0,4,0],[-1,6,3],[-2,4,4],[-1,5,4],[0,6,3],[1,2,-1],[1,3,-1],[1,5,1],[1,5,3],[-2,4,5],[0,4,5],[-3,3,5],[-1,3,4],[-1,4,6],[0,5,5],[1,2,3],[1,2,4],[1,-2,0],[2,-1,-1],[2,1,-1],[2,1,2],[1,0,3],[2,0,3],[1,0,4],[2,-1,4],[2,0,4],[1,5,4],[2,3,4],[3,-1,1],[3,-1,3],[3,0,3],[-3,2,8],[-2,1,8],[-1,2,8],[1,-1,5],[1,0,5],[1,0,6],[1,0,7],[0,2,6],[0,2,7],[1,2,6],[1,2,7],[-3,3,7],[-2,3,8],[-1,3,8],[-3,4,7],[2,1,6],[1,3,7],[1,4,5],[3,2,1],[4,0,1],[4,2,1],[3,1,3],[4,0,2],[3,4,3],[4,2,2],[2,2,4]]}],"glance":[{"t":0,"count":13,"cells":[[0,0,0],[0,2,0],[0,1,0],[0,1,1],[1,0,1],[1,2,1],[1,1,1],[-3,0,7],[-3,1,6],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6]]},{"t":1,"count":14,"cells":[[-1,1,0],[-1,1,1],[1,0,1],[1,2,1],[0,0,0],[0,2,0],[0,1,2],[1,1,2],[-3,1,6],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,0,7]]},{"t":2,"count":13,"cells":[[-1,0,1],[-1,1,1],[-1,2,1],[0,0,2],[0,1,2],[0,2,2],[1,1,0],[-3,0,7],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,1,6]]},{"t":3,"count":12,"cells":[[-1,0,2],[-1,1,1],[0,1,0],[0,1,2],[-1,2,2],[1,1,1],[-3,1,6],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,0,7]]},{"t":4,"count":13,"cells":[[-1,0,1],[-1,1,1],[-1,1,2],[0,0,2],[0,1,2],[-1,2,1],[0,2,2],[-3,0,7],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,1,6]]},{"t":5,"count":14,"cells":[[-2,1,1],[-2,1,2],[0,0,2],[-1,0,1],[-1,2,1],[0,2,2],[-1,1,3],[0,1,3],[-3,1,6],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,0,7]]},{"t":6,"count":13,"cells":[[-2,0,2],[-2,1,2],[-2,2,2],[-1,0,3],[-1,1,3],[-1,2,3],[0,1,1],[-3,0,7],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,1,6]]},{"t":7,"count":12,"cells":[[-2,0,3],[-2,1,2],[-1,1,1],[-1,1,3],[-2,2,3],[0,1,2],[-3,1,6],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,0,7]]},{"t":8,"count":13,"cells":[[-2,0,2],[-2,1,2],[-2,1,3],[-1,0,3],[-1,1,3],[-2,2,2],[-1,2,3],[-3,0,7],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,1,6]]},{"t":9,"count":14,"cells":[[-3,1,2],[-3,1,3],[-1,0,3],[-2,0,2],[-2,2,2],[-1,2,3],[-2,1,4],[-1,1,4],[-3,1,6],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,0,7]]},{"t":10,"count":18,"cells":[[-3,0,3],[-3,1,3],[-3,2,3],[-2,0,4],[-2,1,4],[-2,2,4],[-1,1,2],[-3,0,5],[-3,1,5],[-2,2,5],[-1,0,5],[-1,1,5],[-3,0,7],[-3,1,7],[-2,0,6],[-2,0,7],[-2,1,6],[-3,1,6]]},{"t":11,"count":13,"cells":[[-4,0,4],[-3,1,3],[-2,-1,4],[-2,1,2],[-2,-1,5],[-1,0,4],[-1,0,5],[-1,1,3],[-1,2,4],[-3,-1,6],[-3,1,7],[-2,0,7],[-3,0,7]]},{"t":12,"count":13,"cells":[[-3,-1,5],[-3,0,3],[-3,0,4],[-3,0,5],[-2,2,3],[-2,-1,5],[-1,-1,4],[-1,-1,5],[-1,0,3],[-1,0,4],[-1,1,4],[0,1,4],[-2,1,6]]},{"t":13,"count":15,"cells":[[-4,-1,4],[-4,0,4],[-3,0,4],[-3,0,5],[-3,0,6],[-2,-2,4],[-2,-2,5],[-2,-1,6],[-3,1,4],[-1,1,4],[-1,-1,4],[-1,0,3],[0,-1,4],[0,1,3],[-1,1,5]]},{"t":14,"count":17,"cells":[[-4,0,3],[-4,0,4],[-3,-2,5],[-3,-1,3],[-3,0,3],[-3,0,4],[-4,1,4],[-2,-1,3],[-2,1,3],[-3,-1,6],[-2,0,6],[-1,-2,4],[-1,-1,3],[-1,-1,4],[-1,0,3],[0,0,5],[0,1,4]]}],"still":[{"t":0,"count":6,"cells":[[0,1,1],[0,2,0],[0,2,1],[1,1,0],[1,1,1],[1,2,0]]},{"t":1,"count":6,"cells":[[0,2,0],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,1,1]]},{"t":2,"count":6,"cells":[[0,1,1],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,2,0]]},{"t":3,"count":6,"cells":[[0,2,0],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,1,1]]},{"t":4,"count":6,"cells":[[0,1,1],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,2,0]]},{"t":5,"count":6,"cells":[[0,2,0],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,1,1]]},{"t":6,"count":6,"cells":[[0,1,1],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,2,0]]},{"t":7,"count":6,"cells":[[0,2,0],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,1,1]]},{"t":8,"count":6,"cells":[[0,1,1],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,2,0]]},{"t":9,"count":6,"cells":[[0,2,0],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,1,1]]},{"t":10,"count":6,"cells":[[0,1,1],[0,2,1],[1,1,0],[1,1,1],[1,2,0],[0,2,0]]}]};
+    let currentModeName = 'still';
+    let currentFrames = MODES.still;
+    let stepIndex = 0;
+    let isPlaying = false;
+
+    const descriptions = {
+      still: {
+        title: "【モード①: 6セル静止体（Still Life）の証明】",
+        descs: [
+          "t=0: 6セルアタッチメント単独配置。時間経過しても形が1ミリも変わりません。",
+          "t=1: セル数 6 を維持。全セルが近傍 4〜5 個の完璧な調和（S45）を保っています。",
+          "t=2: セル数 6。永遠に無傷でその場に静止し続けます。",
+          "t=3: セル数 6。崩壊も増殖もしない岩石のような静止構造物です。"
+        ],
+        legend: "アタッチメント単体は、時間発展させても一切崩れず、永久に静止し続ける安定な「3D Still Life（6セル）」です。"
+      },
+      explode: {
+        title: "【モード②: 直撃による信管起爆（ANDゲートの原理）】",
+        descs: [
+          "t=0: 青い7セル弾が、緑の6セルアタッチメント（直撃コース）へ向けて発射！",
+          "t=1〜3: 弾丸が接近。アタッチメントは直前まで静止。",
+          "t=4: 衝突開始！アタッチメントの静止バランスが破られ、セル数が13から18へ跳ね上がる！",
+          "t=6〜8: 触媒としての均衡を超え、アタッチメントが激しく起爆（セル数41〜62へ急拡大）！",
+          "t=10〜12: ★大爆発！100セル以上の巨大火花となり、四方へ信号弾を散乱（信管起爆・AND回路達成）！"
+        ],
+        legend: "真正面からまともに直撃すると、アタッチメントは反射鏡ではなく「信管（爆弾）」として機能し、1+1の合流で新たな大出力信号を炸裂させます。"
+      },
+      glance: {
+        title: "【モード③: かすめ通過による触媒励起（Catalyst Interaction）】",
+        descs: [
+          "t=0: 弾丸がアタッチメントの端をかすめる（斜めオフセット）軌道で前進！",
+          "t=2〜4: アタッチメントの近傍界に突入。お互いの表面が共鳴開始。",
+          "t=5〜7: 弾丸の通過エネルギーを吸ってアタッチメントが一瞬歪み、セル数が14〜17へ励起！",
+          "t=9〜11: 弾丸が軌道を曲げられながら離脱。アタッチメントはエネルギーを放出して収縮！",
+          "t=12〜14: 弾丸が別方向へ飛び去り、アタッチメントが静止へ落ち着いていく触媒プロセス！"
+        ],
+        legend: "直撃ではなく「絶妙な距離でかすめる」と、壊れずにエネルギーを交換し、進行方向を偏向させる「触媒（Catalyst）効果」が生まれます。"
+      }
+    };
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050811);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(16, 12, 18);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 1, 3);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(10, 20, 15);
+    scene.add(dirLight);
+
+    const grid = new THREE.GridHelper(30, 30, 0x30363d, 0x161b22);
+    grid.position.set(0, -1, 3);
+    scene.add(grid);
+
+    const boxGroup = new THREE.Group();
+    scene.add(boxGroup);
+
+    const boxGeom = new THREE.BoxGeometry(0.88, 0.88, 0.88);
+
+    const matBlue = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2, metalness: 0.8, emissive: 0x38bdf8, emissiveIntensity: 0.3 });
+    const matGreen = new THREE.MeshStandardMaterial({ color: 0xa3e635, roughness: 0.3, metalness: 0.7, emissive: 0x65a30d, emissiveIntensity: 0.2 });
+    const matOrange = new THREE.MeshStandardMaterial({ color: 0xfb923c, roughness: 0.2, metalness: 0.8, emissive: 0xf97316, emissiveIntensity: 0.5 });
+
+    function setMode(mode) {
+      currentModeName = mode;
+      currentFrames = MODES[mode];
+      stepIndex = 0;
+      isPlaying = false;
+      document.getElementById('play-btn').innerText = '▶ 再生';
+
+      ['still', 'explode', 'glance'].forEach(m => {
+        document.getElementById('btn-' + m).className = (m === mode) ? 'mode-btn active' : 'mode-btn';
+      });
+
+      const maxStep = currentFrames.length - 1;
+      document.getElementById('max-step-val').innerText = maxStep;
+      document.getElementById('time-slider').max = maxStep;
+      document.getElementById('mode-legend').innerText = descriptions[mode].legend;
+
+      renderStep();
+    }
+
+    function renderStep() {
+      while (boxGroup.children.length > 0) {
+        boxGroup.remove(boxGroup.children[0]);
+      }
+
+      const frame = currentFrames[stepIndex];
+      document.getElementById('step-lbl').innerText = 't = ' + frame.t;
+      document.getElementById('count-lbl').innerText = frame.count;
+      document.getElementById('time-val').innerText = stepIndex;
+      document.getElementById('time-slider').value = stepIndex;
+
+      const descList = descriptions[currentModeName].descs;
+      const descText = descList[Math.min(stepIndex, descList.length - 1)] || (descriptions[currentModeName].title + ' (セル数: ' + frame.count + ')');
+      document.getElementById('desc-box').innerText = descText;
+
+      frame.cells.forEach(([x, y, z]) => {
+        let mat = matBlue;
+        if (currentModeName === 'still') {
+          mat = matGreen;
+        } else if (stepIndex === 0) {
+          mat = z < 3 ? matBlue : matGreen;
+        } else if (frame.count > 30) {
+          mat = matOrange;
+        } else {
+          mat = z < 4 ? matBlue : matGreen;
+        }
+        const mesh = new THREE.Mesh(boxGeom, mat);
+        mesh.position.set(x, y, z);
+        boxGroup.add(mesh);
+      });
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      document.getElementById('play-btn').innerText = isPlaying ? '⏸ 一時停止' : '▶ 再生';
+    }
+
+    function prevStep() {
+      isPlaying = false;
+      document.getElementById('play-btn').innerText = '▶ 再生';
+      stepIndex = Math.max(0, stepIndex - 1);
+      renderStep();
+    }
+
+    function nextStep() {
+      isPlaying = false;
+      document.getElementById('play-btn').innerText = '▶ 再生';
+      stepIndex = Math.min(currentFrames.length - 1, stepIndex + 1);
+      renderStep();
+    }
+
+    function resetSim() {
+      stepIndex = 0;
+      renderStep();
+    }
+
+    function onSlider(v) {
+      isPlaying = false;
+      document.getElementById('play-btn').innerText = '▶ 再生';
+      stepIndex = parseInt(v);
+      renderStep();
+    }
+
+    let lastTime = 0;
+    function animate(time) {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      if (isPlaying && time - lastTime > 600) {
+        lastTime = time;
+        if (stepIndex < currentFrames.length - 1) {
+          stepIndex++;
+          renderStep();
+        } else {
+          isPlaying = false;
+          document.getElementById('play-btn').innerText = '▶ 再生';
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    setMode('still');
+    requestAnimationFrame(animate);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
