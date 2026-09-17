@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌌 3D 多粒子物理＆新種結晶スタジオ (B4/S45 Multi-Particle Physics Lab)</title>
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg: #030712;
+      --panel-bg: rgba(15, 23, 42, 0.94);
+      --border: #1e293b;
+      --accent-cyan: #38bdf8;
+      --accent-purple: #c084fc;
+      --accent-green: #22c55e;
+      --accent-orange: #fb923c;
+      --accent-gold: #fbbf24;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    /* 左上メインUIパネル */
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 450px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+    #ui-panel::-webkit-scrollbar { width: 4px; }
+    #ui-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    h1 {
+      font-size: 17px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: rgba(192, 132, 252, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(192, 132, 252, 0.35);
+    }
+    .subhead {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+
+    /* モード選択タブ */
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .mode-tab {
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .mode-tab:hover {
+      background: #334155;
+      color: #fff;
+    }
+    .mode-tab.active {
+      background: rgba(56, 189, 248, 0.18);
+      border-color: var(--accent-cyan);
+      color: #fff;
+    }
+    .tab-title { font-size: 11.5px; font-weight: 800; }
+    .tab-sub { font-size: 9.5px; color: #94a3b8; font-weight: 500; }
+
+    /* メトリクス表示カード */
+    .info-card {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .info-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .info-title { font-size: 12.5px; font-weight: 800; color: #fff; }
+    .info-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+    .info-badge.speed-c { background: rgba(251, 191, 36, 0.2); color: var(--accent-gold); border: 1px solid rgba(251, 191, 36, 0.4); }
+    .info-badge.breath { background: rgba(56, 189, 248, 0.2); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.4); }
+    .info-badge.crystal { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); border: 1px solid rgba(34, 197, 94, 0.4); }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      text-align: center;
+      background: #0b1329;
+      padding: 8px 6px;
+      border-radius: 6px;
+      border: 1px solid #1e293b;
+      font-size: 11px;
+    }
+    .stat-val { font-size: 14px; font-weight: 900; color: #fff; margin-top: 2px; }
+    .stat-lbl { font-size: 9.5px; color: #64748b; font-weight: 700; }
+
+    /* コントロール */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .btn-row { display: flex; gap: 8px; }
+    .btn {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-primary { background: #0284c7; color: #fff; }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-secondary { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+    .btn-secondary:hover { background: #334155; color: #fff; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent-cyan);
+    }
+
+    /* 学術解説 */
+    .theory-box {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(11, 19, 41, 0.8);
+      border: 1px solid #1e293b;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #94a3b8;
+    }
+    .theory-title {
+      font-weight: 800;
+      color: #e2e8f0;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* 右上リンク */
+    #nav-panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+    .nav-link {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      color: #cbd5e1;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s;
+    }
+    .nav-link:hover {
+      background: #1e293b;
+      color: #fff;
+      border-color: #475569;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- ナビゲーション -->
+  <div id="nav-panel">
+    <a href="index.html" class="nav-link">🏠 Hub</a>
+    <a href="spatial_char_scanner_3d.html" class="nav-link">🌌 文字スキャナー</a>
+    <a href="logic_gates_3d_viewer.html" class="nav-link">🎛️ 論理ゲート</a>
+    <a href="half_adder_3d_viewer.html" class="nav-link">➕ 半加算器</a>
+  </div>
+
+  <!-- メインUI -->
+  <div id="ui-panel">
+    <h1>
+      <span>🌌 3D 多粒子物理＆新結晶ラボ</span>
+      <span class="badge">Multi-Physics</span>
+    </h1>
+    <p class="subhead">
+      光速 $v=c$ の剛体グライダーと、奇偶ポンプ呼吸する7セル粒子、そして衝突により創生される未知の多値結晶群を完全3D検証。
+    </p>
+
+    <!-- モード選択タブ -->
+    <div class="mode-tabs">
+      <div class="mode-tab active" onclick="switchMode('photon')">
+        <div class="tab-title">⚡ 光速8セル剛体 (Photon)</div>
+        <div class="tab-sub">速度 v=c, 周期1 (不変)</div>
+      </div>
+      <div class="mode-tab" onclick="switchMode('glider7')">
+        <div class="tab-title">🪶 7セル奇数呼吸 (Glider)</div>
+        <div class="tab-sub">速度 v=c/4, 周期4 (7->8->7->6)</div>
+      </div>
+      <div class="mode-tab" onclick="switchMode('crystal8')">
+        <div class="tab-title">💎 新種：8セル結晶化</div>
+        <div class="tab-sub">光速衝突 -> 8セル静止結晶</div>
+      </div>
+      <div class="mode-tab" onclick="switchMode('crystal16')">
+        <div class="tab-title">💎 新種：16セル結晶化</div>
+        <div class="tab-sub">光速衝突 -> 16セル安定結晶</div>
+      </div>
+      <div class="mode-tab" onclick="switchMode('crystal20')">
+        <div class="tab-title">💎 新種：20セル大型結晶</div>
+        <div class="tab-sub">光速衝突 -> 20セル複合結晶</div>
+      </div>
+      <div class="mode-tab" onclick="switchMode('hetero')">
+        <div class="tab-title">💥 異種衝突 完全消滅</div>
+        <div class="tab-sub">光速(8) × 呼吸(7) -> 真空(0)</div>
+      </div>
+    </div>
+
+    <!-- 情報カード -->
+    <div class="info-card">
+      <div class="info-header">
+        <span class="info-title" id="modeTitle">⚡ 光速8セル剛体グライダー (Photon)</span>
+        <span class="info-badge speed-c" id="modeBadge">Velocity = c</span>
+      </div>
+      <div class="stat-row">
+        <div>
+          <div class="stat-lbl">現在セル数</div>
+          <div class="stat-val" id="cellCountText" style="color: var(--accent-cyan);">8</div>
+        </div>
+        <div>
+          <div class="stat-lbl">運動周期</div>
+          <div class="stat-val" id="periodText">1 (剛体)</div>
+        </div>
+        <div>
+          <div class="stat-lbl">パリティ (奇偶性)</div>
+          <div class="stat-val" id="parityText" style="color: var(--accent-gold);">偶数 (8)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- コントロール -->
+    <div class="controls">
+      <div class="slider-row">
+        <span>Step: <b id="stepText" style="color: var(--accent-cyan); font-size: 14px;">0</b> / <span id="maxStepText">24</span></span>
+        <input type="range" id="stepSlider" min="0" max="24" value="0">
+      </div>
+      <div class="btn-row">
+        <button id="btnPlay" class="btn btn-primary" onclick="togglePlay()">▶ 再生</button>
+        <button class="btn btn-secondary" onclick="prevStep()">◀ 戻る</button>
+        <button class="btn btn-secondary" onclick="nextStep()">進む ▶</button>
+        <button class="btn btn-secondary" onclick="resetSim()">↺ 初期位置</button>
+      </div>
+    </div>
+
+    <!-- 学術解説 -->
+    <div class="theory-box" id="theoryBox">
+      <div class="theory-title">💡 物理的意義：光速剛体粒子</div>
+      セルオートマトンの理論最高速度（1ステップ1セル）で直進。変形や呼吸を行わず、8セルのまま光速で長距離幹線を横断する「光子（Photon）」の役割を果たします。
+    </div>
+  </div>
+
+  <script>
+    // === 純粋局所則 B4/S45 エンジン ===
+    const NEIGHBORS_26 = [];
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dz = -1; dz <= 1; dz++)
+          if (dx || dy || dz) NEIGHBORS_26.push([dx, dy, dz]);
+
+    function pureStep(cellSet) {
+      const counts = new Map();
+      for (const k of cellSet) {
+        const [x, y, z] = k.split(',').map(Number);
+        for (const [dx, dy, dz] of NEIGHBORS_26) {
+          const nk = `${x + dx},${y + dy},${z + dz}`;
+          counts.set(nk, (counts.get(nk) || 0) + 1);
+        }
+      }
+      const nextSet = new Set();
+      for (const [k, cnt] of counts.entries()) {
+        const alive = cellSet.has(k);
+        if ((alive && (cnt === 4 || cnt === 5)) || (!alive && cnt === 4)) {
+          nextSet.add(k);
+        }
+      }
+      return nextSet;
+    }
+
+    // 8セル光速剛体グライダー (+X 方向)
+    const P_PHOTON = [
+      [0,0,0],[0,0,1],
+      [0,3,0],[0,3,1],
+      [2,1,0],[2,1,1],
+      [2,2,0],[2,2,1]
+    ];
+    const P_PHOTON_REV = P_PHOTON.map(([x, y, z]) => [-x, y, z]);
+
+    // 7セル呼吸グライダー ([-1, 0, 1] 方向)
+    const G_GLIDER7 = [
+      [0,0,0], [0,1,0], [0,2,0],
+      [0,1,1], [1,0,1], [1,1,1], [1,2,1]
+    ];
+
+    // モード定義
+    const MODES = {
+      photon: {
+        title: '⚡ 光速8セル剛体グライダー (Photon)',
+        badge: 'Velocity = c',
+        badgeClass: 'speed-c',
+        period: '1 (剛体)',
+        parity: '偶数 (8)',
+        maxSteps: 24,
+        desc: 'セルオートマトンの理論最高速度（1ステップ1セル）で直進。変形や呼吸を行わず、8セルのまま光速で長距離幹線を横断する「光子（Photon）」の役割を果たします。',
+        init: () => {
+          return P_PHOTON.map(c => [c[0] - 12, c[1], c[2]]);
+        }
+      },
+      glider7: {
+        title: '🪶 7セル奇数呼吸グライダー (Glider)',
+        badge: 'Breathing 7->8->7->6',
+        badgeClass: 'breath',
+        period: '4 (羽ばたき)',
+        parity: '奇偶振動 (7⇔偶数)',
+        maxSteps: 28,
+        desc: '奇数(7)の不対性により推進力を得て、奇数と偶数の狭間を 7->8->7->6 と呼吸しながら飛ぶ奇跡の粒子。内部時計（位相）を持ちます。',
+        init: () => {
+          return G_GLIDER7.map(c => [c[0] + 6, c[1], c[2] - 6]);
+        }
+      },
+      crystal8: {
+        title: '💎 新種：8セル静止結晶化 (Still Life 8)',
+        badge: 'New Crystal (8)',
+        badgeClass: 'crystal',
+        period: '∞ (永久静止)',
+        parity: '偶数 (8セル)',
+        maxSteps: 24,
+        desc: '2基の光速粒子が対向衝突し、完全静止する 8セルの新種立方晶を鍛造。多値メモリの第1準位として機能します。',
+        init: () => {
+          const a = P_PHOTON.map(c => [c[0] - 10, c[1], c[2]]);
+          const b = P_PHOTON_REV.map(c => [c[0] + 5, c[1] - 2, c[2] - 1]);
+          return a.concat(b);
+        }
+      },
+      crystal16: {
+        title: '💎 新種：16セル安定結晶化 (Still Life 16)',
+        badge: 'New Crystal (16)',
+        badgeClass: 'crystal',
+        period: '∞ (永久静止)',
+        parity: '偶数 (16セル)',
+        maxSteps: 24,
+        desc: '光速粒子の衝突から鍛造される16セルの強固な中型結晶。多値メモリの第2準位として安定保持されます。',
+        init: () => {
+          const a = P_PHOTON.map(c => [c[0] - 10, c[1], c[2]]);
+          const b = P_PHOTON_REV.map(c => [c[0] + 5, c[1] - 3, c[2] - 3]);
+          return a.concat(b);
+        }
+      },
+      crystal20: {
+        title: '💎 新種：20セル複合大型結晶化 (Still Life 20)',
+        badge: 'New Crystal (20)',
+        badgeClass: 'crystal',
+        period: '∞ (永久静止)',
+        parity: '偶数 (20セル)',
+        maxSteps: 24,
+        desc: '2基の光速粒子が交差衝突し、20セルの巨大な複合結晶を創生。高エネルギー励起状態を表現可能。',
+        init: () => {
+          const a = P_PHOTON.map(c => [c[0] - 10, c[1], c[2]]);
+          const b = P_PHOTON_REV.map(c => [c[0] + 4, c[1] - 2, c[2]]);
+          return a.concat(b);
+        }
+      },
+      hetero: {
+        title: '💥 異種衝突：光速(8) × 呼吸(7) の完全真空対消滅',
+        badge: 'Annihilation -> 0',
+        badgeClass: 'breath',
+        period: '消滅 (Vacuum)',
+        parity: '基底状態 (0)',
+        maxSteps: 24,
+        desc: '速度 v=c の直進光子と、速度 v=c/4 の対角呼吸粒子が交差衝突し、わずか数ステップで火花・残骸ゼロの完全真空（0セル）に蒸発します。',
+        init: () => {
+          const p = P_PHOTON.map(c => [c[0] - 8, c[1], c[2]]);
+          const g = G_GLIDER7.map(c => [c[0] + 0, c[1] - 1, c[2] - 2]);
+          return p.concat(g);
+        }
+      }
+    };
+
+    let currentModeKey = 'photon';
+    let simHistory = [];
+    let currentStepIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    function buildSimForMode(modeKey) {
+      const mode = MODES[modeKey];
+      const initCells = mode.init();
+      let s = new Set(initCells.map(c => c.join(',')));
+
+      simHistory = [Array.from(s)];
+      for (let t = 1; t <= mode.maxSteps; t++) {
+        s = pureStep(s);
+        simHistory.push(Array.from(s));
+      }
+
+      document.getElementById('modeTitle').textContent = mode.title;
+      const badgeEl = document.getElementById('modeBadge');
+      badgeEl.textContent = mode.badge;
+      badgeEl.className = 'info-badge ' + mode.badgeClass;
+
+      document.getElementById('periodText').textContent = mode.period;
+      document.getElementById('parityText').textContent = mode.parity;
+      document.getElementById('theoryBox').innerHTML = `<div class="theory-title">💡 物理的意義</div>${mode.desc}`;
+      document.getElementById('maxStepText').textContent = mode.maxSteps;
+      document.getElementById('stepSlider').max = mode.maxSteps;
+
+      renderStep(0);
+    }
+
+    function switchMode(key) {
+      if (isPlaying) togglePlay();
+      currentModeKey = key;
+      document.querySelectorAll('.mode-tab').forEach((tab, idx) => {
+        tab.classList.remove('active');
+      });
+      // クリックしたタブをactiveに
+      const tabs = Object.keys(MODES);
+      const idx = tabs.indexOf(key);
+      if (idx >= 0) document.querySelectorAll('.mode-tab')[idx].classList.add('active');
+
+      buildSimForMode(key);
+    }
+
+    // === Three.js シーン ===
+    let scene, camera, renderer, controls;
+    let cellMeshGroup;
+    const boxGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+    const materialDefault = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.5,
+      roughness: 0.2
+    });
+    const materialCrystal = new THREE.MeshStandardMaterial({
+      color: 0x22c55e,
+      emissive: 0x16a34a,
+      emissiveIntensity: 0.6,
+      roughness: 0.1
+    });
+
+    function initThree() {
+      const container = document.getElementById('canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x030712);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(20, 25, 40);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.set(0, 1, 0);
+      controls.update();
+
+      // ライト
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      const dLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dLight.position.set(30, 50, 30);
+      scene.add(dLight);
+
+      // グリッド
+      const grid = new THREE.GridHelper(50, 50, 0x1e293b, 0x0f172a);
+      grid.position.y = -4;
+      scene.add(grid);
+
+      cellMeshGroup = new THREE.Group();
+      scene.add(cellMeshGroup);
+
+      window.addEventListener('resize', onWindowResize);
+      animate();
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function renderStep(idx) {
+      currentStepIndex = idx;
+      document.getElementById('stepText').textContent = idx;
+      document.getElementById('stepSlider').value = idx;
+
+      while (cellMeshGroup.children.length > 0) {
+        cellMeshGroup.remove(cellMeshGroup.children[0]);
+      }
+
+      if (!simHistory[idx]) return;
+      const cells = simHistory[idx];
+      document.getElementById('cellCountText').textContent = cells.length;
+
+      const isCrystalMode = currentModeKey.startsWith('crystal');
+      const mat = (isCrystalMode && idx >= 10) ? materialCrystal : materialDefault;
+
+      cells.forEach(k => {
+        const [x, y, z] = k.split(',').map(Number);
+        const mesh = new THREE.Mesh(boxGeometry, mat);
+        mesh.position.set(x, y, z);
+        cellMeshGroup.add(mesh);
+      });
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      const btn = document.getElementById('btnPlay');
+      if (isPlaying) {
+        btn.textContent = '⏸ 一時停止';
+        playInterval = setInterval(() => {
+          const max = MODES[currentModeKey].maxSteps;
+          if (currentStepIndex >= max) {
+            currentStepIndex = 0;
+          } else {
+            currentStepIndex++;
+          }
+          renderStep(currentStepIndex);
+        }, 260);
+      } else {
+        btn.textContent = '▶ 再生';
+        clearInterval(playInterval);
+      }
+    }
+
+    function prevStep() {
+      if (isPlaying) togglePlay();
+      if (currentStepIndex > 0) renderStep(currentStepIndex - 1);
+    }
+
+    function nextStep() {
+      if (isPlaying) togglePlay();
+      const max = MODES[currentModeKey].maxSteps;
+      if (currentStepIndex < max) renderStep(currentStepIndex + 1);
+    }
+
+    function resetSim() {
+      if (isPlaying) togglePlay();
+      renderStep(0);
+    }
+
+    document.getElementById('stepSlider').addEventListener('input', (e) => {
+      if (isPlaying) togglePlay();
+      renderStep(parseInt(e.target.value, 10));
+    });
+
+    initThree();
+    buildSimForMode('photon');
+  </script>
+</body>
+</html>

@@ -30,6 +30,7 @@ All simulators run in standard web browsers using Vanilla HTML5 + Three.js (**Ze
 
 | Studio / Viewer | Description | File |
 | :--- | :--- | :--- |
+| **🌌 3D Multi-Particle & Crystal Lab** | Photon gliders ($v=c$), breathing gliders, and 8/16/20-cell crystal states. | `multi_particle_lab_3d.html` |
 | **🌌 3D Spatial Char Scanner** | Non-Vector Language Matcher: computes Hamming distance via 3D glider annihilation. | `spatial_char_scanner_3d.html` |
 | **🎛️ Logic Gates Studio** | Interactive 3D simulator for candidate gates (**NOR**, **NOT**, **AND**, **OR**, **XOR**). | `logic_gates_3d_viewer.html` |
 | **🧮 1+1 Half Adder Studio** | Experimental dual-glider $1+1 = 2$ ($10_{(2)}$) collision viewer. | `half_adder_3d_viewer.html` |
@@ -100,6 +101,20 @@ A spatial computing paradigm that measures similarity/distance between character
   $$\text{Distance}(A, B) = N_{\text{surviving gliders}} = \sum_{i=0}^7 (A_i \oplus B_i)$$
   - Identical characters (e.g. `'A'` vs `'A'`) result in **total vacuum annihilation (Distance = 0)**.
   - 1-bit difference (e.g. `'A'` vs `'C'`, or `'A'` vs `'a'`) results in **exactly 1 surviving glider**.
+
+---
+
+### 7. ⚡ Multi-Particle Physics & Novel Crystal States (多粒子物理と新種結晶)
+Computational search across 50,000 randomized configurations revealed rich multi-particle dynamics in B4/S45:
+- **8-Cell Photon Glider**: A rigid spaceship travelling at the theoretical speed of light ($v = c = 1.0$), with period 1 and unchanging cell count ($8 \to 8 \to 8$).
+  ```json
+  [[0,0,0], [0,0,1], [0,3,0], [0,3,1], [2,1,0], [2,1,1], [2,2,0], [2,2,1]]
+  ```
+- **Collision-Induced Multi-State Crystals**:
+  - Head-on collision of photon gliders at offset `[15, -2, -1]` synthesizes an **8-cell still life**.
+  - Collision at offset `[15, -3, -3]` synthesizes a **16-cell still life**.
+  - Collision at offset `[14, -2, 0]` synthesizes a **20-cell complex still life**.
+- **Heterogeneous Annihilation**: Cross-collision between a speed-$c$ photon glider and a speed-$c/4$ breathing glider achieves complete clean annihilation into **0 cells (pure vacuum)** in 18 distinct geometries.
 
 ---
 

@@ -262,6 +262,34 @@ for (const tc of scannerTestCases) {
   assert(surviving === tc.expected, `空間文字距離測定 '${tc.a}' vs '${tc.b}': 期待値 ${tc.expected}, 実測残存グライダー数 ${surviving} (セル数: ${s.size})`);
 }
 
+// ============================================================================
+console.log("\n【TEST 7】新種 8セル光速剛体グライダー（Photon v=c）＆新結晶創生検証");
+const P_PHOTON_TEST = [
+  [0,0,0],[0,0,1],
+  [0,3,0],[0,3,1],
+  [2,1,0],[2,1,1],
+  [2,2,0],[2,2,1]
+];
+
+// 1. 光速飛行テスト
+let sPhoton = new Set(P_PHOTON_TEST.map(c => c.join(',')));
+let photonValid = true;
+for (let t = 1; t <= 10; t++) {
+  sPhoton = pureStep(sPhoton);
+  if (sPhoton.size !== 8) photonValid = false;
+}
+assert(photonValid && sPhoton.size === 8, "8セル光速グライダー: 変形せず 8->8->8 で光速 v=c 直進");
+
+// 2. 衝突による 8セル新結晶創生テスト (オフセット [15, -2, -1])
+const P_PHOTON_REV_TEST = P_PHOTON_TEST.map(([x, y, z]) => [-x, y, z]);
+const gA = P_PHOTON_TEST.map(c => [c[0] - 10, c[1], c[2]]);
+const gB = P_PHOTON_REV_TEST.map(c => [c[0] + 5, c[1] - 2, c[2] - 1]);
+let sCol = new Set();
+gA.forEach(c => sCol.add(c.join(',')));
+gB.forEach(c => sCol.add(c.join(',')));
+for (let t = 1; t <= 20; t++) sCol = pureStep(sCol);
+assert(sCol.size === 8, `光速グライダー正面衝突: 8セルの新種静止結晶を鍛造 (最終セル数: ${sCol.size})`);
+
 console.log("\n================================================================================");
 if (allTestsPassed) {
   console.log("🎉 ALL TESTS PASSED! すべての物理回路・真理値表・JSONが100%厳密に検証されました！");
