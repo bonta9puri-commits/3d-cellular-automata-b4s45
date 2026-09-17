@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌌 3D 非ベクトル単語検索スキャナー (3D Spatial Word Nearest-Neighbor Search)</title>
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg: #030712;
+      --panel-bg: rgba(15, 23, 42, 0.94);
+      --border: #1e293b;
+      --accent-cyan: #38bdf8;
+      --accent-orange: #fb923c;
+      --accent-green: #22c55e;
+      --accent-gold: #fbbf24;
+      --accent-rose: #f43f5e;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    /* メインUIパネル (左側) */
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 460px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+    #ui-panel::-webkit-scrollbar { width: 4px; }
+    #ui-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    h1 {
+      font-size: 17px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .subhead {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+
+    /* 単語入力カード */
+    .word-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .query-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .query-label { font-size: 12px; font-weight: 800; color: var(--accent-cyan); width: 80px; }
+    .word-input {
+      background: #0b1329;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      outline: none;
+      flex: 1;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .word-input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(56,189,248,0.3); }
+
+    .cand-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .cand-box { text-align: center; }
+    .cand-box label { display: block; font-size: 10px; font-weight: 700; color: #94a3b8; margin-bottom: 4px; }
+    .cand-box input {
+      width: 100%;
+      background: #0b1329;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 6px 4px;
+      outline: none;
+      text-align: center;
+    }
+    .cand-box input:focus { border-color: var(--accent-orange); }
+
+    .presets { display: flex; flex-wrap: wrap; gap: 5px; }
+    .preset-btn {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .preset-btn:hover { background: #334155; color: #fff; border-color: #475569; }
+
+    /* ランキング結果カード */
+    .ranking-card {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .ranking-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .rank-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .rank-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0b1329;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .rank-item:hover { background: #162038; }
+    .rank-item.active-view {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(56,189,248,0.2);
+    }
+    .rank-item.winner { border-color: rgba(34, 197, 94, 0.6); }
+    .rank-left { display: flex; align-items: center; gap: 8px; }
+    .rank-medal { font-size: 14px; }
+    .rank-word { font-size: 14px; font-weight: 900; letter-spacing: 1px; color: #fff; }
+    .rank-meta { font-size: 10.5px; color: #94a3b8; }
+    .rank-dist { font-size: 14px; font-weight: 900; }
+    .rank-dist.winner-dist { color: var(--accent-green); }
+    .rank-dist.other-dist { color: var(--accent-orange); }
+
+    /* コントロール */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .btn-row { display: flex; gap: 8px; }
+    .btn {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-primary { background: #0284c7; color: #fff; }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-secondary { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+    .btn-secondary:hover { background: #334155; color: #fff; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent-cyan);
+    }
+
+    /* 学術解説 */
+    .theory-box {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(11, 19, 41, 0.8);
+      border: 1px solid #1e293b;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #94a3b8;
+    }
+    .theory-title {
+      font-weight: 800;
+      color: #e2e8f0;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* 右上リンク */
+    #nav-panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+    .nav-link {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      color: #cbd5e1;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s;
+    }
+    .nav-link:hover { background: #1e293b; color: #fff; border-color: #475569; }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- ナビゲーション -->
+  <div id="nav-panel">
+    <a href="index.html" class="nav-link">🏠 Hub</a>
+    <a href="spatial_char_scanner_3d.html" class="nav-link">🌌 1文字スキャナー</a>
+    <a href="multi_particle_lab_3d.html" class="nav-link">⚡ 多粒子＆新結晶</a>
+    <a href="logic_gates_3d_viewer.html" class="nav-link">🎛️ 論理ゲート</a>
+  </div>
+
+  <!-- メインUI -->
+  <div id="ui-panel">
+    <h1>
+      <span>🌌 3D 非ベクトル単語検索スキャナー</span>
+      <span class="badge">Spatial RAG</span>
+    </h1>
+    <p class="subhead">
+      現代AIの核心「ベクトル近傍探索（内積計算）」を完全排除。3次元空間の対消滅物理だけで、検索語に最も近い単語を即座に特定します。
+    </p>
+
+    <!-- 単語入力カード -->
+    <div class="word-card">
+      <div class="query-row">
+        <span class="query-label">検索クエリ:</span>
+        <input type="text" id="queryInput" class="word-input" value="CAT" maxlength="4">
+      </div>
+      <div class="cand-grid">
+        <div class="cand-box">
+          <label>候補 1</label>
+          <input type="text" id="cand1" value="BAT" maxlength="4">
+        </div>
+        <div class="cand-box">
+          <label>候補 2</label>
+          <input type="text" id="cand2" value="CAR" maxlength="4">
+        </div>
+        <div class="cand-box">
+          <label>候補 3</label>
+          <input type="text" id="cand3" value="DOG" maxlength="4">
+        </div>
+      </div>
+      <div class="presets">
+        <span style="font-size: 10px; color: #64748b; align-self: center;">プリセット:</span>
+        <button class="preset-btn" onclick="setPreset('CAT', 'BAT', 'CAR', 'DOG')">CAT (BAT, CAR, DOG)</button>
+        <button class="preset-btn" onclick="setPreset('SUN', 'RUN', 'SON', 'SEA')">SUN (RUN, SON, SEA)</button>
+        <button class="preset-btn" onclick="setPreset('CPU', 'GPU', 'TPU', 'RAM')">CPU (GPU, TPU, RAM)</button>
+        <button class="preset-btn" onclick="setPreset('AI', 'ML', 'DL', 'VR')">AI (ML, DL, VR)</button>
+      </div>
+    </div>
+
+    <!-- ランキング結果カード -->
+    <div class="ranking-card">
+      <div class="ranking-title">
+        <span>🏆 空間物理 最近傍ランキング</span>
+        <span style="font-size: 10px; color: #64748b;">(クリックで3D表示切替)</span>
+      </div>
+      <div class="rank-list" id="rankList">
+        <!-- JSで動的生成 -->
+      </div>
+    </div>
+
+    <!-- コントロール -->
+    <div class="controls">
+      <div class="slider-row">
+        <span>Step: <b id="stepText" style="color: var(--accent-cyan); font-size: 14px;">0</b> / 16</span>
+        <input type="range" id="stepSlider" min="0" max="16" value="0">
+      </div>
+      <div class="btn-row">
+        <button id="btnPlay" class="btn btn-primary" onclick="togglePlay()">▶ 再生</button>
+        <button class="btn btn-secondary" onclick="prevStep()">◀ 戻る</button>
+        <button class="btn btn-secondary" onclick="nextStep()">進む ▶</button>
+        <button class="btn btn-secondary" onclick="resetSim()">↺ 初期位置</button>
+      </div>
+    </div>
+
+    <!-- 学術解説 -->
+    <div class="theory-box">
+      <div class="theory-title">💡 なぜ内積なしで最も近い単語がわかるのか？</div>
+      複数文字を3次元のボクセル列車（立体波）として射出。各文字の対応するビット同士が正面衝突します。<br>
+      一致した文字・ビットは<b>完全真空（0セル）に消滅</b>するため、<b>「すり抜けてきた光（グライダー）の数が最も少ない単語」が、物理的に最も近い単語（最近傍 / Best Match）</b> になります。
+    </div>
+  </div>
+
+  <script>
+    // === 純粋局所則 B4/S45 エンジン ===
+    const NEIGHBORS_26 = [];
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dz = -1; dz <= 1; dz++)
+          if (dx || dy || dz) NEIGHBORS_26.push([dx, dy, dz]);
+
+    function pureStep(cellSet) {
+      const counts = new Map();
+      for (const k of cellSet) {
+        const [x, y, z] = k.split(',').map(Number);
+        for (const [dx, dy, dz] of NEIGHBORS_26) {
+          const nk = `${x + dx},${y + dy},${z + dz}`;
+          counts.set(nk, (counts.get(nk) || 0) + 1);
+        }
+      }
+      const nextSet = new Set();
+      for (const [k, cnt] of counts.entries()) {
+        const alive = cellSet.has(k);
+        if ((alive && (cnt === 4 || cnt === 5)) || (!alive && cnt === 4)) {
+          nextSet.add(k);
+        }
+      }
+      return nextSet;
+    }
+
+    // 基準グライダー GA: 進行方向 (-1, 0, 1)
+    const G_BASE_A = [
+      [0,0,0], [0,1,0], [0,2,0],
+      [0,1,1], [1,0,1], [1,1,1], [1,2,1]
+    ];
+    // 対向グライダー GB: 進行方向 (1, 0, -1)
+    const G_BASE_B = G_BASE_A.map(([x, y, z]) => [-x - 5, y - 2, -z + 7]);
+
+    const SPAN_LANE = 12;
+    const SPAN_CHAR = 26;
+
+    function getCharBitOffset(charIndex, bitIndex) {
+      const u = bitIndex & 1;
+      const v = (bitIndex >> 1) & 1;
+      const w = (bitIndex >> 2) & 1;
+      const ox = u * SPAN_LANE + w * (SPAN_LANE * 2);
+      const oy = v * SPAN_LANE;
+      const oz = u * SPAN_LANE + w * (SPAN_LANE * 2) + charIndex * SPAN_CHAR;
+      return [ox, oy, oz];
+    }
+
+    function encodeWord(word, isSideB = false) {
+      const cells = [];
+      const baseGlider = isSideB ? G_BASE_B : G_BASE_A;
+      for (let charIdx = 0; charIdx < word.length; charIdx++) {
+        const code = word.charCodeAt(charIdx);
+        for (let bit = 0; bit < 8; bit++) {
+          if ((code >> bit) & 1) {
+            const [ox, oy, oz] = getCharBitOffset(charIdx, bit);
+            baseGlider.forEach(([x, y, z]) => {
+              cells.push([x + ox, y + oy, z + oz]);
+            });
+          }
+        }
+      }
+      return cells;
+    }
+
+    let matchResults = [];
+    let activeCandidateIndex = 0;
+    let simHistory = [];
+    let currentStepIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    function runWordSearch() {
+      const query = (document.getElementById('queryInput').value || 'CAT').toUpperCase();
+      const c1 = (document.getElementById('cand1').value || 'BAT').toUpperCase();
+      const c2 = (document.getElementById('cand2').value || 'CAR').toUpperCase();
+      const c3 = (document.getElementById('cand3').value || 'DOG').toUpperCase();
+
+      const candidates = [c1, c2, c3];
+      matchResults = [];
+
+      candidates.forEach((cand, idx) => {
+        const cellsA = encodeWord(query, false);
+        const cellsB = encodeWord(cand, true);
+
+        let s = new Set();
+        cellsA.forEach(c => s.add(c.join(',')));
+        cellsB.forEach(c => s.add(c.join(',')));
+
+        const history = [Array.from(s)];
+        for (let t = 1; t <= 16; t++) {
+          s = pureStep(s);
+          history.push(Array.from(s));
+        }
+
+        const survivingGliders = Math.round(s.size / 7);
+
+        let dist = 0;
+        const maxLen = Math.max(query.length, cand.length);
+        for (let i = 0; i < maxLen; i++) {
+          const charQ = i < query.length ? query.charCodeAt(i) : 0;
+          const charC = i < cand.length ? cand.charCodeAt(i) : 0;
+          const diff = charQ ^ charC;
+          for (let b = 0; b < 8; b++) {
+            if ((diff >> b) & 1) dist++;
+          }
+        }
+
+        matchResults.push({
+          index: idx,
+          candidate: cand,
+          dist: dist,
+          survivingGliders: survivingGliders,
+          history: history
+        });
+      });
+
+      // 距離が短い順（昇順）にソート
+      matchResults.sort((a, b) => a.dist - b.dist);
+
+      updateRankingUI();
+      selectViewCandidate(matchResults[0].index);
+    }
+
+    function updateRankingUI() {
+      const container = document.getElementById('rankList');
+      container.innerHTML = '';
+
+      matchResults.forEach((r, rank) => {
+        const medals = ['🥇', '🥈', '🥉'];
+        const item = document.createElement('div');
+        item.className = 'rank-item ' + (rank === 0 ? 'winner' : '');
+        if (r.index === activeCandidateIndex) item.classList.add('active-view');
+
+        item.onclick = () => selectViewCandidate(r.index);
+
+        item.innerHTML = `
+          <div class="rank-left">
+            <span class="rank-medal">${medals[rank]}</span>
+            <div>
+              <div class="rank-word">${r.candidate}</div>
+              <div class="rank-meta">${rank === 0 ? '👑 最も近い (Best Match)' : (rank === 1 ? '近い' : '遠い')}</div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div class="rank-dist ${rank === 0 ? 'winner-dist' : 'other-dist'}">残存光: ${r.survivingGliders}</div>
+            <div class="rank-meta">物理ハミング距離: ${r.dist}</div>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function selectViewCandidate(candIndex) {
+      activeCandidateIndex = candIndex;
+      const targetData = matchResults.find(r => r.index === candIndex);
+      simHistory = targetData ? targetData.history : [];
+      updateRankingUI();
+      renderStep(currentStepIndex);
+    }
+
+    function setPreset(q, c1, c2, c3) {
+      document.getElementById('queryInput').value = q;
+      document.getElementById('cand1').value = c1;
+      document.getElementById('cand2').value = c2;
+      document.getElementById('cand3').value = c3;
+      runWordSearch();
+    }
+
+    // イベントリスナー
+    ['queryInput', 'cand1', 'cand2', 'cand3'].forEach(id => {
+      document.getElementById(id).addEventListener('input', runWordSearch);
+    });
+
+    // === Three.js シーン ===
+    let scene, camera, renderer, controls;
+    let cellMeshGroup;
+    const boxGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+    const materialDefault = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.5,
+      roughness: 0.2
+    });
+
+    function initThree() {
+      const container = document.getElementById('canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x030712);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(45, 60, 95);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.set(20, 10, 35);
+      controls.update();
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      const dLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dLight.position.set(60, 100, 60);
+      scene.add(dLight);
+
+      cellMeshGroup = new THREE.Group();
+      scene.add(cellMeshGroup);
+
+      window.addEventListener('resize', onWindowResize);
+      animate();
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function renderStep(idx) {
+      currentStepIndex = idx;
+      document.getElementById('stepText').textContent = idx;
+      document.getElementById('stepSlider').value = idx;
+
+      while (cellMeshGroup.children.length > 0) {
+        cellMeshGroup.remove(cellMeshGroup.children[0]);
+      }
+
+      if (!simHistory[idx]) return;
+      const cells = simHistory[idx];
+
+      cells.forEach(k => {
+        const [x, y, z] = k.split(',').map(Number);
+        const mesh = new THREE.Mesh(boxGeometry, materialDefault);
+        mesh.position.set(x, y, z);
+        cellMeshGroup.add(mesh);
+      });
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      const btn = document.getElementById('btnPlay');
+      if (isPlaying) {
+        btn.textContent = '⏸ 一時停止';
+        playInterval = setInterval(() => {
+          if (currentStepIndex >= 16) {
+            currentStepIndex = 0;
+          } else {
+            currentStepIndex++;
+          }
+          renderStep(currentStepIndex);
+        }, 280);
+      } else {
+        btn.textContent = '▶ 再生';
+        clearInterval(playInterval);
+      }
+    }
+
+    function prevStep() {
+      if (isPlaying) togglePlay();
+      if (currentStepIndex > 0) renderStep(currentStepIndex - 1);
+    }
+
+    function nextStep() {
+      if (isPlaying) togglePlay();
+      if (currentStepIndex < 16) renderStep(currentStepIndex + 1);
+    }
+
+    function resetSim() {
+      if (isPlaying) togglePlay();
+      renderStep(0);
+    }
+
+    document.getElementById('stepSlider').addEventListener('input', (e) => {
+      if (isPlaying) togglePlay();
+      renderStep(parseInt(e.target.value, 10));
+    });
+
+    initThree();
+    runWordSearch();
+  </script>
+</body>
+</html>

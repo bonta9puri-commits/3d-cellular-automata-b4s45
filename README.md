@@ -30,6 +30,7 @@ All simulators run in standard web browsers using Vanilla HTML5 + Three.js (**Ze
 
 | Studio / Viewer | Description | File |
 | :--- | :--- | :--- |
+| **🌌 3D Spatial Word Search** | Non-Vector Nearest Neighbor: compares words and ranks similarity via 3D annihilation. | `spatial_word_search_3d.html` |
 | **🌌 3D Multi-Particle & Crystal Lab** | Photon gliders ($v=c$), breathing gliders, and 8/16/20-cell crystal states. | `multi_particle_lab_3d.html` |
 | **🌌 3D Spatial Char Scanner** | Non-Vector Language Matcher: computes Hamming distance via 3D glider annihilation. | `spatial_char_scanner_3d.html` |
 | **🎛️ Logic Gates Studio** | Interactive 3D simulator for candidate gates (**NOR**, **NOT**, **AND**, **OR**, **XOR**). | `logic_gates_3d_viewer.html` |
@@ -115,6 +116,16 @@ Computational search across 50,000 randomized configurations revealed rich multi
   - Collision at offset `[15, -3, -3]` synthesizes a **16-cell still life**.
   - Collision at offset `[14, -2, 0]` synthesizes a **20-cell complex still life**.
 - **Heterogeneous Annihilation**: Cross-collision between a speed-$c$ photon glider and a speed-$c/4$ breathing glider achieves complete clean annihilation into **0 cells (pure vacuum)** in 18 distinct geometries.
+
+---
+
+### 8. 🔍 Non-Vector Word Nearest-Neighbor Search (単語の最近傍探索 / 空間RAG)
+Replaces embedding vector databases and dot-product matrix multiplication with 3D spatial particle annihilation:
+- Multiple characters are encoded as parallel spatial packet trains along the $Z$-axis.
+- Query word (e.g. `CAT`) collides head-on against candidate words (`BAT`, `CAR`, `DOG`).
+- Matching characters/bits annihilate to pure vacuum; the candidate with the **fewest surviving gliders** is physically identified as the **nearest neighbor (Best Match)**:
+  $$\text{Nearest Neighbor} = \arg\min_{\text{word}} N_{\text{surviving gliders}}(\text{Query}, \text{word})$$
+- Verified ranking: `CAT` matches `BAT` (1 glider) $<$ `CAR` (2 gliders) $<$ `DOG` (9 gliders).
 
 ---
 

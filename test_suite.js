@@ -290,6 +290,52 @@ gB.forEach(c => sCol.add(c.join(',')));
 for (let t = 1; t <= 20; t++) sCol = pureStep(sCol);
 assert(sCol.size === 8, `光速グライダー正面衝突: 8セルの新種静止結晶を鍛造 (最終セル数: ${sCol.size})`);
 
+// ============================================================================
+console.log("\n【TEST 8】非ベクトル単語検索（3単語の空間最近傍探索 Nearest Neighbor）検証");
+const SPAN_CHAR_TEST = 26;
+function getCharBitOffsetTest(charIndex, bitIndex) {
+  const u = bitIndex & 1;
+  const v = (bitIndex >> 1) & 1;
+  const w = (bitIndex >> 2) & 1;
+  const ox = u * 12 + w * 24;
+  const oy = v * 12;
+  const oz = u * 12 + w * 24 + charIndex * SPAN_CHAR_TEST;
+  return [ox, oy, oz];
+}
+
+function encodeWordTest(word, isSideB) {
+  const cells = [];
+  const baseGlider = isSideB ? G_BASE_B_SCAN : G_BASE_A_SCAN;
+  for (let charIdx = 0; charIdx < word.length; charIdx++) {
+    const code = word.charCodeAt(charIdx);
+    for (let bit = 0; bit < 8; bit++) {
+      if ((code >> bit) & 1) {
+        const [ox, oy, oz] = getCharBitOffsetTest(charIdx, bit);
+        baseGlider.forEach(([x, y, z]) => cells.push([x + ox, y + oy, z + oz]));
+      }
+    }
+  }
+  return cells;
+}
+
+function matchWordsTest(w1, w2) {
+  const cA = encodeWordTest(w1, false);
+  const cB = encodeWordTest(w2, true);
+  let s = new Set();
+  cA.forEach(c => s.add(c.join(',')));
+  cB.forEach(c => s.add(c.join(',')));
+  for (let t = 1; t <= 16; t++) s = pureStep(s);
+  return Math.round(s.size / 7);
+}
+
+const targetWord = "CAT";
+const d_BAT = matchWordsTest(targetWord, "BAT");
+const d_CAR = matchWordsTest(targetWord, "CAR");
+const d_DOG = matchWordsTest(targetWord, "DOG");
+
+assert(d_BAT < d_CAR && d_CAR < d_DOG, `空間単語最近傍ランキング判定: CAT に対し BAT(${d_BAT}) < CAR(${d_CAR}) < DOG(${d_DOG}) の順序が物理的に成立`);
+assert(d_BAT === 1, `CAT vs BAT の最近傍距離が厳密に 1 (物理残存グライダー数: ${d_BAT})`);
+
 console.log("\n================================================================================");
 if (allTestsPassed) {
   console.log("🎉 ALL TESTS PASSED! すべての物理回路・真理値表・JSONが100%厳密に検証されました！");
