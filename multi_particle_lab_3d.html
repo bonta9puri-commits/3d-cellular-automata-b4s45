@@ -275,13 +275,13 @@
         <div class="tab-title">💎 新種：8セル結晶化</div>
         <div class="tab-sub">光速衝突 -> 8セル静止結晶</div>
       </div>
-      <div class="mode-tab" onclick="switchMode('crystal16')">
-        <div class="tab-title">💎 新種：16セル結晶化</div>
-        <div class="tab-sub">光速衝突 -> 16セル安定結晶</div>
-      </div>
       <div class="mode-tab" onclick="switchMode('crystal20')">
         <div class="tab-title">💎 新種：20セル大型結晶</div>
         <div class="tab-sub">光速衝突 -> 20セル複合結晶</div>
+      </div>
+      <div class="mode-tab" onclick="switchMode('chainReaction')">
+        <div class="tab-title">💥 擦過衝突：連鎖爆発</div>
+        <div class="tab-sub">かすり衝突 -> 暴走増殖(1000+)</div>
       </div>
       <div class="mode-tab" onclick="switchMode('hetero')">
         <div class="tab-title">💥 異種衝突 完全消滅</div>
@@ -414,14 +414,14 @@
           return a.concat(b);
         }
       },
-      crystal16: {
-        title: '💎 新種：16セル安定結晶化 (Still Life 16)',
-        badge: 'New Crystal (16)',
-        badgeClass: 'crystal',
-        period: '∞ (永久静止)',
-        parity: '偶数 (16セル)',
+      chainReaction: {
+        title: '💥 擦過衝突：連鎖爆発反応 (Chain Reaction)',
+        badge: 'Explosion 1000+',
+        badgeClass: 'speed-c',
+        period: '非可逆爆発',
+        parity: '暴走増殖 (28->120->1000+)',
         maxSteps: 24,
-        desc: '光速粒子の衝突から鍛造される16セルの強固な中型結晶。多値メモリの第2準位として安定保持されます。',
+        desc: '正面衝突（8/20セル結晶化）と異なり、わずかに斜めにかすり衝突（擦過）したことで、結晶化に失敗してエネルギーが暴走。核分裂のようにセルが爆発的増殖を起こす現象です。',
         init: () => {
           const a = P_PHOTON.map(c => [c[0] - 10, c[1], c[2]]);
           const b = P_PHOTON_REV.map(c => [c[0] + 5, c[1] - 3, c[2] - 3]);

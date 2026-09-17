@@ -111,10 +111,10 @@ Computational search across 50,000 randomized configurations revealed rich multi
   ```json
   [[0,0,0], [0,0,1], [0,3,0], [0,3,1], [2,1,0], [2,1,1], [2,2,0], [2,2,1]]
   ```
-- **Collision-Induced Multi-State Crystals**:
+- **Collision-Induced Multi-State Crystals & Reactions**:
   - Head-on collision of photon gliders at offset `[15, -2, -1]` synthesizes an **8-cell still life**.
-  - Collision at offset `[15, -3, -3]` synthesizes a **16-cell still life**.
-  - Collision at offset `[14, -2, 0]` synthesizes a **20-cell complex still life**.
+  - Head-on collision at offset `[14, -2, 0]` synthesizes a **20-cell complex still life**.
+  - Glance collision at offset `[15, -3, -3]` triggers an **explosive chain reaction** ($16 \to 120 \to 1000+$ cells).
 - **Heterogeneous Annihilation**: Cross-collision between a speed-$c$ photon glider and a speed-$c/4$ breathing glider achieves complete clean annihilation into **0 cells (pure vacuum)** in 18 distinct geometries.
 
 ---
