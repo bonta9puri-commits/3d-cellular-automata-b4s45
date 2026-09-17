@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌌 3D 非ベクトル空間文字距離スキャナー (3D Spatial Character Distance Scanner)</title>
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg: #030712;
+      --panel-bg: rgba(15, 23, 42, 0.92);
+      --border: #1e293b;
+      --accent-cyan: #38bdf8;
+      --accent-orange: #fb923c;
+      --accent-green: #22c55e;
+      --accent-purple: #c084fc;
+      --accent-rose: #f43f5e;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    /* メインUIパネル (左側) */
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 440px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+    #ui-panel::-webkit-scrollbar { width: 4px; }
+    #ui-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    h1 {
+      font-size: 17px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .subhead {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+
+    /* 文字入力カード */
+    .input-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .char-inputs {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .char-box {
+      text-align: center;
+    }
+    .char-box label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .char-box.side-a label { color: var(--accent-cyan); }
+    .char-box.side-b label { color: var(--accent-orange); }
+    .char-input {
+      width: 54px;
+      height: 54px;
+      font-size: 26px;
+      font-weight: 800;
+      text-align: center;
+      background: #0b1329;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      color: #fff;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .char-box.side-a .char-input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(56,189,248,0.3); }
+    .char-box.side-b .char-input:focus { border-color: var(--accent-orange); box-shadow: 0 0 10px rgba(251,146,60,0.3); }
+    .vs-icon {
+      font-size: 16px;
+      font-weight: 900;
+      color: #64748b;
+    }
+
+    /* プリセットボタン */
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .preset-btn {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .preset-btn:hover {
+      background: #334155;
+      color: #fff;
+      border-color: #475569;
+    }
+
+    /* 距離測定メーター */
+    .meter-card {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+    }
+    .meter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .meter-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #cbd5e1;
+    }
+    .meter-value {
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--accent-green);
+    }
+    .meter-status {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+    .status-exact { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); border: 1px solid rgba(34, 197, 94, 0.4); }
+    .status-diff { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); border: 1px solid rgba(244, 63, 94, 0.4); }
+
+    /* 8ビットレーン一覧 */
+    .lane-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 3px;
+      margin-top: 8px;
+    }
+    .lane-col {
+      text-align: center;
+      background: #0b1329;
+      padding: 6px 2px;
+      border-radius: 4px;
+      border: 1px solid #1e293b;
+      font-size: 10px;
+    }
+    .lane-bit { color: #64748b; font-weight: 700; margin-bottom: 2px; font-size: 9px; }
+    .lane-a { color: var(--accent-cyan); font-weight: 800; }
+    .lane-b { color: var(--accent-orange); font-weight: 800; }
+    .lane-res {
+      margin-top: 3px;
+      padding: 2px 0;
+      border-radius: 3px;
+      font-weight: 800;
+    }
+    .res-annihilate { background: #1e293b; color: #64748b; }
+    .res-pass { background: rgba(34, 197, 94, 0.25); color: var(--accent-green); }
+
+    /* シミュレーションコントロール */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-primary {
+      background: #0284c7;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-secondary {
+      background: #1e293b;
+      color: #cbd5e1;
+      border-color: #334155;
+    }
+    .btn-secondary:hover { background: #334155; color: #fff; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent-cyan);
+    }
+
+    /* 学術解説アコーディオン */
+    .theory-box {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(11, 19, 41, 0.8);
+      border: 1px solid #1e293b;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #94a3b8;
+    }
+    .theory-title {
+      font-weight: 800;
+      color: #e2e8f0;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* 右上リンク */
+    #nav-panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+    .nav-link {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      color: #cbd5e1;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s;
+    }
+    .nav-link:hover {
+      background: #1e293b;
+      color: #fff;
+      border-color: #475569;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- ナビゲーション -->
+  <div id="nav-panel">
+    <a href="index.html" class="nav-link">🏠 Hub</a>
+    <a href="logic_gates_3d_viewer.html" class="nav-link">🎛️ 論理ゲート</a>
+    <a href="half_adder_3d_viewer.html" class="nav-link">➕ 半加算器</a>
+  </div>
+
+  <!-- メインUI -->
+  <div id="ui-panel">
+    <h1>
+      <span>🌌 3D 空間文字スキャナー</span>
+      <span class="badge">Non-Vector AI</span>
+    </h1>
+    <p class="subhead">
+      ベクトル計算（内積・埋め込み）を使わず、3次元空間の物理対消滅（XOR）によって2つの文字間のハミング距離を直接測定します。
+    </p>
+
+    <!-- 入力カード -->
+    <div class="input-card">
+      <div class="char-inputs">
+        <div class="char-box side-a">
+          <label>文字 A (入射弾)</label>
+          <input type="text" id="inputA" class="char-input" value="A" maxlength="1">
+          <div style="font-size: 10px; color: var(--accent-cyan); margin-top: 4px;" id="codeA">65 (01000001)</div>
+        </div>
+        <div class="vs-icon">⚡ VS ⚡</div>
+        <div class="char-box side-b">
+          <label>文字 B (対向弾)</label>
+          <input type="text" id="inputB" class="char-input" value="B" maxlength="1">
+          <div style="font-size: 10px; color: var(--accent-orange); margin-top: 4px;" id="codeB">66 (01000010)</div>
+        </div>
+      </div>
+
+      <div class="presets">
+        <span style="font-size: 10.5px; color: #64748b; align-self: center; margin-right: 2px;">プリセット:</span>
+        <button class="preset-btn" onclick="setPreset('A', 'A')">A vs A (完全一致)</button>
+        <button class="preset-btn" onclick="setPreset('A', 'C')">A vs C (差分1)</button>
+        <button class="preset-btn" onclick="setPreset('A', 'B')">A vs B (差分2)</button>
+        <button class="preset-btn" onclick="setPreset('A', 'a')">A vs a (大文字/小文字)</button>
+        <button class="preset-btn" onclick="setPreset('0', '1')">0 vs 1 (数字)</button>
+      </div>
+    </div>
+
+    <!-- 測定結果メーター -->
+    <div class="meter-card">
+      <div class="meter-header">
+        <span class="meter-title">空間物理 距離測定結果 (Hamming Distance)</span>
+        <span class="meter-value" id="distValue">2</span>
+      </div>
+      <div id="statusBadge" class="meter-status status-diff">差分あり (Distance = 2)</div>
+
+      <!-- 8ビットレーン詳細 -->
+      <div style="font-size: 10.5px; color: #94a3b8; margin-top: 4px;">2^3 立体レーン別 衝突結果 (XOR)</div>
+      <div class="lane-grid" id="laneGrid">
+        <!-- JSで8列生成 -->
+      </div>
+    </div>
+
+    <!-- コントロール -->
+    <div class="controls">
+      <div class="slider-row">
+        <span>Step: <b id="stepText" style="color: var(--accent-cyan); font-size: 14px;">0</b> / 16</span>
+        <input type="range" id="stepSlider" min="0" max="16" value="0">
+      </div>
+      <div class="btn-row">
+        <button id="btnPlay" class="btn btn-primary" onclick="togglePlay()">▶ 再生</button>
+        <button class="btn btn-secondary" onclick="prevStep()">◀ 戻る</button>
+        <button class="btn btn-secondary" onclick="nextStep()">進む ▶</button>
+        <button class="btn btn-secondary" onclick="resetSim()">↺ 初期位置</button>
+      </div>
+    </div>
+
+    <!-- 学術解説 -->
+    <div class="theory-box">
+      <div class="theory-title">💡 なぜベクトルを使わずに距離が測れるのか？</div>
+      1文字（8ビット）を 2^3 の3次元格子状に並んだ8基のグライダー群として空間に配置。同じビットを持つレーンでは正面衝突して**完全真空消滅（0セル化）**し、異なるビット（0と1）のレーンではグライダーがそのまま通過します。<br>
+      衝突後に空間を抜けてきた残存グライダー数そのものが、2文字の **ハミング距離（非類似度）** に完全一致します。
+    </div>
+  </div>
+
+  <script>
+    // === CA 物理シミュレータコア ===
+    const NEIGHBORS_26 = [];
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dz = -1; dz <= 1; dz++)
+          if (dx || dy || dz) NEIGHBORS_26.push([dx, dy, dz]);
+
+    function pureStep(cellSet) {
+      const counts = new Map();
+      for (const k of cellSet) {
+        const [x, y, z] = k.split(',').map(Number);
+        for (const [dx, dy, dz] of NEIGHBORS_26) {
+          const nk = `${x + dx},${y + dy},${z + dz}`;
+          counts.set(nk, (counts.get(nk) || 0) + 1);
+        }
+      }
+      const nextSet = new Set();
+      for (const [k, cnt] of counts.entries()) {
+        const alive = cellSet.has(k);
+        if ((alive && (cnt === 4 || cnt === 5)) || (!alive && cnt === 4)) {
+          nextSet.add(k);
+        }
+      }
+      return nextSet;
+    }
+
+    // 基準グライダー GA: 進行方向 (-1, 0, 1)
+    const G_BASE_A = [
+      [0,0,0], [0,1,0], [0,2,0],
+      [0,1,1], [1,0,1], [1,1,1], [1,2,1]
+    ];
+
+    // 対向グライダー GB: 進行方向 (1, 0, -1)
+    // GAと衝突して完全消滅するオフセット [-5, -2, 7]
+    const G_BASE_B = G_BASE_A.map(([x, y, z]) => [-x - 5, y - 2, -z + 7]);
+
+    const SPAN = 12; // 干渉防止クリアランス
+
+    function getLaneOffset(bitIndex) {
+      const u = bitIndex & 1;        // bit 0
+      const v = (bitIndex >> 1) & 1; // bit 1
+      const w = (bitIndex >> 2) & 1; // bit 2
+      const ox = u * SPAN + w * (SPAN * 2);
+      const oy = v * SPAN;
+      const oz = u * SPAN + w * (SPAN * 2);
+      return [ox, oy, oz];
+    }
+
+    function encodeChar(char, isSideB = false) {
+      const code = typeof char === 'string' ? char.charCodeAt(0) : char;
+      const cells = [];
+      const baseGlider = isSideB ? G_BASE_B : G_BASE_A;
+
+      for (let bit = 0; bit < 8; bit++) {
+        if ((code >> bit) & 1) {
+          const [ox, oy, oz] = getLaneOffset(bit);
+          baseGlider.forEach(([x, y, z]) => {
+            cells.push([x + ox, y + oy, z + oz]);
+          });
+        }
+      }
+      return cells;
+    }
+
+    // シミュレーションキャッシュ
+    let simHistory = [];
+    let currentStepIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    function buildSimulation(charA, charB) {
+      const cellsA = encodeChar(charA, false);
+      const cellsB = encodeChar(charB, true);
+
+      let s = new Set();
+      cellsA.forEach(c => s.add(c.join(',')));
+      cellsB.forEach(c => s.add(c.join(',')));
+
+      simHistory = [Array.from(s)];
+      for (let t = 1; t <= 16; t++) {
+        s = pureStep(s);
+        simHistory.push(Array.from(s));
+      }
+      updateUI();
+      renderStep(currentStepIndex);
+    }
+
+    // UI 更新
+    function updateUI() {
+      const charA = document.getElementById('inputA').value || ' ';
+      const charB = document.getElementById('inputB').value || ' ';
+      const codeA = charA.charCodeAt(0);
+      const codeB = charB.charCodeAt(0);
+
+      document.getElementById('codeA').textContent = `${codeA} (${codeA.toString(2).padStart(8, '0')})`;
+      document.getElementById('codeB').textContent = `${codeB} (${codeB.toString(2).padStart(8, '0')})`;
+
+      // ハミング距離
+      const diff = codeA ^ codeB;
+      let dist = 0;
+      for (let b = 0; b < 8; b++) {
+        if ((diff >> b) & 1) dist++;
+      }
+      document.getElementById('distValue').textContent = dist;
+
+      const badge = document.getElementById('statusBadge');
+      if (dist === 0) {
+        badge.className = 'meter-status status-exact';
+        badge.textContent = '🎯 完全一致 (Distance = 0, 真空消滅)';
+      } else {
+        badge.className = 'meter-status status-diff';
+        badge.textContent = `差分あり (Distance = ${dist}, 残存グライダー数 = ${dist})`;
+      }
+
+      // レーングリッド更新
+      const grid = document.getElementById('laneGrid');
+      grid.innerHTML = '';
+      for (let b = 0; b < 8; b++) {
+        const bitA = (codeA >> b) & 1;
+        const bitB = (codeB >> b) & 1;
+        const isDiff = (diff >> b) & 1;
+
+        const col = document.createElement('div');
+        col.className = 'lane-col';
+        col.innerHTML = `
+          <div class="lane-bit">b${b}</div>
+          <div class="lane-a">${bitA}</div>
+          <div class="lane-b">${bitB}</div>
+          <div class="lane-res ${isDiff ? 'res-pass' : 'res-annihilate'}">
+            ${isDiff ? '通過' : (bitA && bitB ? '消滅' : '0')}
+          </div>
+        `;
+        grid.appendChild(col);
+      }
+    }
+
+    function setPreset(a, b) {
+      document.getElementById('inputA').value = a;
+      document.getElementById('inputB').value = b;
+      recompute();
+    }
+
+    function recompute() {
+      const a = document.getElementById('inputA').value || 'A';
+      const b = document.getElementById('inputB').value || 'B';
+      currentStepIndex = 0;
+      document.getElementById('stepSlider').value = 0;
+      buildSimulation(a, b);
+    }
+
+    document.getElementById('inputA').addEventListener('input', recompute);
+    document.getElementById('inputB').addEventListener('input', recompute);
+
+    // === Three.js シーン構築 ===
+    let scene, camera, renderer, controls;
+    let cellMeshGroup, laneWireGroup;
+    const boxGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+    const materialDefault = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.5,
+      roughness: 0.2
+    });
+
+    function initThree() {
+      const container = document.getElementById('canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x030712);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(40, 50, 75);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.set(18, 8, 18);
+      controls.update();
+
+      // ライト
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight1.position.set(50, 80, 50);
+      scene.add(dirLight1);
+
+      const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.4);
+      dirLight2.position.set(-50, -20, -50);
+      scene.add(dirLight2);
+
+      // レーンガイドの描画
+      laneWireGroup = new THREE.Group();
+      scene.add(laneWireGroup);
+      for (let b = 0; b < 8; b++) {
+        const [ox, oy, oz] = getLaneOffset(b);
+        // 進行方向 (-1, 0, 1) に沿ったガイドライン
+        const pts = [
+          new THREE.Vector3(ox + 18, oy, oz - 18),
+          new THREE.Vector3(ox - 24, oy, oz + 24)
+        ];
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        const lineMat = new THREE.LineBasicMaterial({
+          color: 0x1e293b,
+          transparent: true,
+          opacity: 0.7
+        });
+        const line = new THREE.Line(lineGeo, lineMat);
+        laneWireGroup.add(line);
+      }
+
+      cellMeshGroup = new THREE.Group();
+      scene.add(cellMeshGroup);
+
+      window.addEventListener('resize', onWindowResize);
+      animate();
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function renderStep(idx) {
+      currentStepIndex = idx;
+      document.getElementById('stepText').textContent = idx;
+      document.getElementById('stepSlider').value = idx;
+
+      // 既存メッシュ削除
+      while (cellMeshGroup.children.length > 0) {
+        cellMeshGroup.remove(cellMeshGroup.children[0]);
+      }
+
+      if (!simHistory[idx]) return;
+      const cells = simHistory[idx];
+
+      cells.forEach(k => {
+        const [x, y, z] = k.split(',').map(Number);
+        const mesh = new THREE.Mesh(boxGeometry, materialDefault);
+        mesh.position.set(x, y, z);
+        cellMeshGroup.add(mesh);
+      });
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      const btn = document.getElementById('btnPlay');
+      if (isPlaying) {
+        btn.textContent = '⏸ 一時停止';
+        playInterval = setInterval(() => {
+          if (currentStepIndex >= 16) {
+            currentStepIndex = 0;
+          } else {
+            currentStepIndex++;
+          }
+          renderStep(currentStepIndex);
+        }, 300);
+      } else {
+        btn.textContent = '▶ 再生';
+        clearInterval(playInterval);
+      }
+    }
+
+    function prevStep() {
+      if (isPlaying) togglePlay();
+      if (currentStepIndex > 0) {
+        renderStep(currentStepIndex - 1);
+      }
+    }
+
+    function nextStep() {
+      if (isPlaying) togglePlay();
+      if (currentStepIndex < 16) {
+        renderStep(currentStepIndex + 1);
+      }
+    }
+
+    function resetSim() {
+      if (isPlaying) togglePlay();
+      renderStep(0);
+    }
+
+    document.getElementById('stepSlider').addEventListener('input', (e) => {
+      if (isPlaying) togglePlay();
+      renderStep(parseInt(e.target.value, 10));
+    });
+
+    // 初期化
+    initThree();
+    recompute();
+  </script>
+</body>
+</html>

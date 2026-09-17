@@ -215,6 +215,53 @@ for (const fname of jsonFiles) {
   assert(parsed !== null, `${fname} が正常な JSON でありパース成功 (サイズ: ${(raw.length/1024).toFixed(1)} KB)`);
 }
 
+// ============================================================================
+console.log("\n【TEST 6】非ベクトル立体文字（2^3 8ビット）空間ハミング距離スキャナー検証");
+const SPAN_LANE = 12;
+function getLaneOffset(bitIndex) {
+  const u = bitIndex & 1;
+  const v = (bitIndex >> 1) & 1;
+  const w = (bitIndex >> 2) & 1;
+  return [u * SPAN_LANE + w * (SPAN_LANE * 2), v * SPAN_LANE, u * SPAN_LANE + w * (SPAN_LANE * 2)];
+}
+const G_BASE_A_SCAN = [
+  [0,0,0], [0,1,0], [0,2,0],
+  [0,1,1], [1,0,1], [1,1,1], [1,2,1]
+];
+const G_BASE_B_SCAN = G_BASE_A_SCAN.map(([x, y, z]) => [-x - 5, y - 2, -z + 7]);
+
+function encodeCharTest(char, isSideB) {
+  const code = char.charCodeAt(0);
+  const cells = [];
+  const baseGlider = isSideB ? G_BASE_B_SCAN : G_BASE_A_SCAN;
+  for (let bit = 0; bit < 8; bit++) {
+    if ((code >> bit) & 1) {
+      const [ox, oy, oz] = getLaneOffset(bit);
+      baseGlider.forEach(([x, y, z]) => cells.push([x + ox, y + oy, z + oz]));
+    }
+  }
+  return cells;
+}
+
+const scannerTestCases = [
+  { a: 'A', b: 'A', expected: 0 },
+  { a: 'A', b: 'C', expected: 1 },
+  { a: 'A', b: 'B', expected: 2 },
+  { a: 'A', b: 'a', expected: 1 },
+  { a: '0', b: '1', expected: 1 }
+];
+
+for (const tc of scannerTestCases) {
+  const cellsA = encodeCharTest(tc.a, false);
+  const cellsB = encodeCharTest(tc.b, true);
+  let s = new Set();
+  cellsA.forEach(c => s.add(c.join(',')));
+  cellsB.forEach(c => s.add(c.join(',')));
+  for (let t = 1; t <= 16; t++) s = pureStep(s);
+  const surviving = Math.round(s.size / 7);
+  assert(surviving === tc.expected, `空間文字距離測定 '${tc.a}' vs '${tc.b}': 期待値 ${tc.expected}, 実測残存グライダー数 ${surviving} (セル数: ${s.size})`);
+}
+
 console.log("\n================================================================================");
 if (allTestsPassed) {
   console.log("🎉 ALL TESTS PASSED! すべての物理回路・真理値表・JSONが100%厳密に検証されました！");

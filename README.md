@@ -30,6 +30,7 @@ All simulators run in standard web browsers using Vanilla HTML5 + Three.js (**Ze
 
 | Studio / Viewer | Description | File |
 | :--- | :--- | :--- |
+| **🌌 3D Spatial Char Scanner** | Non-Vector Language Matcher: computes Hamming distance via 3D glider annihilation. | `spatial_char_scanner_3d.html` |
 | **🎛️ Logic Gates Studio** | Interactive 3D simulator for candidate gates (**NOR**, **NOT**, **AND**, **OR**, **XOR**). | `logic_gates_3d_viewer.html` |
 | **🧮 1+1 Half Adder Studio** | Experimental dual-glider $1+1 = 2$ ($10_{(2)}$) collision viewer. | `half_adder_3d_viewer.html` |
 | **📂 Universal JSON Viewer** | Drag-and-drop any CA simulation JSON, customize 8 color themes, gradients, and scrub timeline. | `universal_json_viewer.html` |
@@ -88,6 +89,17 @@ In an experimental fixed coordinate layout, a candidate **NOR gate** configurati
   - $1 \text{ NOR } 1 = \mathbf{0}$ (3-body interaction yields 0 cells at detector)
 
 *Note: While these 4 states match the NOR truth table in isolation, cascading multiple gates, signal fan-out, and autonomous clocking remain active open research topics.*
+
+---
+
+### 6. 🌌 Non-Vector 3D Spatial Language Matcher ($2^3$ Character Distance Scanner)
+A spatial computing paradigm that measures similarity/distance between characters or bytes **without vector dot-products or matrix embeddings**:
+- **Representation**: A byte (8 bits, ASCII) is mapped to an orthogonal $2^3$ lattice of 8 glider lanes.
+- **Physical Annihilation (XOR)**: Two characters $A$ and $B$ are fired head-on. Identical bits collide and annihilate to pure vacuum (0 cells); mismatched bits pass through unobstructed.
+- **Hamming Distance Output**:
+  $$\text{Distance}(A, B) = N_{\text{surviving gliders}} = \sum_{i=0}^7 (A_i \oplus B_i)$$
+  - Identical characters (e.g. `'A'` vs `'A'`) result in **total vacuum annihilation (Distance = 0)**.
+  - 1-bit difference (e.g. `'A'` vs `'C'`, or `'A'` vs `'a'`) results in **exactly 1 surviving glider**.
 
 ---
 
